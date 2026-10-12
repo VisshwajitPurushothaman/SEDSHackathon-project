@@ -200,9 +200,9 @@ def verify_requirements(cfg, ctx: dict[str, Any]) -> list[dict[str, Any]]:
                     violations.append({"t": t, "gate": "motor", "T_c": r["values"]["T"] - 273.15})
             if len(it):
                 i = int(np.clip(np.searchsorted(it, t), 0, len(imu) - 1))
-                win = imu[max(0, i - 8): i + 1]
+                imu_window = imu[max(0, i - 8): i + 1]
                 amps = [math.hypot(math.hypot(w["values"]["tilt_e"], w["values"]["rate_e"] / pend.omega),
-                                   math.hypot(w["values"]["tilt_n"], w["values"]["rate_n"] / pend.omega)) for w in win]
+                                   math.hypot(w["values"]["tilt_n"], w["values"]["rate_n"] / pend.omega)) for w in imu_window]
                 if amps and float(np.median(amps)) > cfg.gates.swing_max_amplitude_deg:
                     violations.append({"t": t, "gate": "swing", "amplitude_deg": float(np.median(amps))})
         out.append(_req(rid, texts[rid], "PASS" if not violations else "FAIL",

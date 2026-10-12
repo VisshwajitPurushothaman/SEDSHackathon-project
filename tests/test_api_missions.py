@@ -166,6 +166,11 @@ def test_recovery_postflight_export(flown, client):
     canon = json.dumps(ex["report"], sort_keys=True, separators=(",", ":"), default=str)
     assert hashlib.sha256(canon.encode()).hexdigest() == ex["report_sha256"]
     assert len(ex["records"]) == st["expected"] and "scorecard" not in ex["report"]
+    assert "truth_track" not in ex["report"] and ex["report"]["grading"] is False
+    assert ex["mission"]["faults"] == {} and "blackouts" not in ex["mission"]["link"]
+    assert all(f["injected"] is None and f["detection_delay_s"] is None for f in ex["report"]["faults"])
+    assert all("faults" not in e["detail"] for e in ex["report"]["event_log"])
+    assert m.event_log[0]["detail"]["faults"] == m.faults_dict  # internal audit is never edited
     csv = client.get(f"/api/missions/{mid}/export", params={"format": "csv"}).text
     assert csv.splitlines()[0] == "seq,event_time,sensor_id,source,status,received_live,field,value,unit"
 
@@ -176,6 +181,27 @@ def test_truth_endpoint_is_gated(flown, client):
     assert t["track"] and t["landing"] is not None
     hidden, _ = create(client, config_overrides={"api": {"truth_enabled": False}})
     assert client.get(f"/api/missions/{hidden}/truth").status_code == 403
+
+
+@pytest.mark.parametrize("grading", [True, False])
+def test_hidden_injection_and_export_use_operator_evidence(client, grading):
+    mid, m = create(client, faults={"balloon_leak_mm": 0.1},
+                    config_overrides={"api": {"truth_enabled": grading}, "sim": {"max_mission_s": 3}})
+    advance(m, lambda m: False)
+    response = client.get(f"/api/missions/{mid}/postflight", headers={"Origin": "http://localhost:5173"})
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+    pf = response.json()
+    assert ("truth_track" in pf) is grading and ("scorecard" in pf) is grading
+    if grading:
+        assert next(f for f in pf["faults"] if f["id"] == "balloon_leak")["detected_at"] is None
+    else:
+        assert pf["faults"] == []
+    ex = client.get(f"/api/missions/{mid}/export").json()
+    assert ex["report"]["faults"] == []  # an undetected injected fault is not operator evidence
+    assert ex["mission"]["faults"] == {}
+    assert all("faults" not in e["detail"] for e in ex["report"]["event_log"])
+    assert m.event_log[0]["detail"]["faults"]["balloon_leak_mm"] == 0.1
 
 
 def test_terminate_cuts_down_without_launch(client):

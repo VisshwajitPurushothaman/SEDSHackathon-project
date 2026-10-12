@@ -480,8 +480,18 @@ class MissionRun:
         report = self.postflight(with_track=True)
         report.pop("scorecard", None)
         report.pop("truth_track", None)
+        # Exports are operator artefacts even when the evaluator is enabled.
+        # Injection settings can also be nested in fault rows and the creation event.
+        report["grading"] = False
+        report["faults"] = [dict(f, injected=None, detection_delay_s=None, kind=f["detected_by"] or f["kind"])
+                            for f in report["faults"] if f["detected_at"] is not None]
+        report["event_log"] = [dict(e, detail={k: v for k, v in e["detail"].items() if k != "faults"})
+                               for e in report["event_log"]]
+        mission = self.summary()
+        mission["faults"] = {}
+        mission["link"] = {k: v for k, v in mission["link"].items() if k != "blackouts"}
         canon = json.dumps(report, sort_keys=True, separators=(",", ":"), default=str)
-        return {"mission": self.summary(), "records": self._records(), "report": report,
+        return {"mission": mission, "records": self._records(), "report": report,
                 "report_sha256": hashlib.sha256(canon.encode("utf-8")).hexdigest()}
 
     def export_csv(self) -> str:

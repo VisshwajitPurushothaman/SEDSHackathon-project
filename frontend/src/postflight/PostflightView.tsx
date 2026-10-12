@@ -1,5 +1,5 @@
 import { CircleCheck, CircleDashed, CircleHelp, CircleX, Download, Eye, EyeOff, FileCheck2, HardDriveDownload, ShieldCheck } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { missionsApi, type MissionSummary } from '../flight/api';
 import { useFlight } from '../flight/store';
@@ -161,13 +161,14 @@ function RequirementsTable({ reqs }: { reqs: Requirement[] }) {
 
 function FaultsTable({ faults, reveal, onAction }: { faults: FaultRow[]; reveal: boolean; onAction: (id: string, text: string) => void }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  faults = reveal ? faults : faults.filter((f) => f.detected_at !== null);
   if (!faults.length) return <p className="text-[12px] text-muted">No faults detected{reveal ? ' or injected' : ''}.</p>;
   return (
     <ul className="flex flex-col gap-2">
       {faults.map((f) => (
         <li key={f.id} className="rounded-lg border border-line/70 bg-panel2/40 px-2.5 py-2 text-[11.5px]">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-medium text-ink">{f.kind}</span>
+            <span className="font-medium text-ink">{reveal ? f.kind : f.detected_by ?? f.kind}</span>
             <span className="num text-muted">{f.detected_at !== null ? `detected ${fmtT(f.detected_at)}` : 'not detected'}</span>
           </div>
           <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px]">
@@ -300,15 +301,22 @@ export default function PostflightView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
+  const currentId = useRef(id);
+  currentId.current = id;
 
   useEffect(() => {
-    missionsApi.list().then((ms) => {
+    let alive = true;
+    const refresh = () => missionsApi.list().then((ms) => {
+      if (!alive) return;
       setMissions(ms);
       if (!id) {
         const fin = ms.filter((m) => m.state === 'finished');
         if (fin.length) setId(fin[fin.length - 1].id);
       }
-    }).catch((e) => setError((e as Error).message));
+    }).catch((e) => { if (alive) setError((e as Error).message); });
+    void refresh();
+    const timer = setInterval(() => void refresh(), 2000);
+    return () => { alive = false; clearInterval(timer); };
   }, [id]);
 
   const selected = missions.find((m) => m.id === id) ?? null;
@@ -317,16 +325,22 @@ export default function PostflightView() {
   const load = useCallback(async () => {
     if (!id || !finished) return;
     try {
-      setReport(await postflightApi.report(id));
-      setRecovery(await postflightApi.recoverStatus(id));
+      const [nextReport, nextRecovery] = await Promise.all([postflightApi.report(id), postflightApi.recoverStatus(id)]);
+      if (currentId.current !== id) return;
+      setReport(nextReport);
+      setRecovery(nextRecovery);
+      setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      if (currentId.current === id) setError((e as Error).message);
     }
   }, [id, finished]);
 
   useEffect(() => {
     setReport(null);
     setHash(null);
+    setRecovery(null);
+    setReveal(false);
+    setError(null);
     void load();
   }, [load]);
 
@@ -334,11 +348,16 @@ export default function PostflightView() {
   useEffect(() => {
     if (!id || recovery?.state !== 'running') return;
     const timer = setInterval(async () => {
-      const st = await postflightApi.recoverStatus(id);
-      setRecovery(st);
-      if (st.state === 'done') {
-        clearInterval(timer);
-        void load();
+      try {
+        const st = await postflightApi.recoverStatus(id);
+        if (currentId.current !== id) return;
+        setRecovery(st);
+        if (st.state === 'done') {
+          clearInterval(timer);
+          void load();
+        }
+      } catch (e) {
+        if (currentId.current === id) setError((e as Error).message);
       }
     }, 300);
     return () => clearInterval(timer);
@@ -369,9 +388,12 @@ export default function PostflightView() {
     setBusy(true);
     try {
       const res = await fetch(postflightApi.exportUrl(id, 'json'));
-      const body = await res.json();
+      if (!res.ok) throw new Error(`Export failed: HTTP ${res.status}`);
+      const raw = await res.text();
+      const body = JSON.parse(raw);
       setHash(body.report_sha256);
-      const blob = new Blob([JSON.stringify(body)], { type: 'application/json' });
+      // Preserve numeric representations used by the server's canonical report hash.
+      const blob = new Blob([raw], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `${id}-mission.json`;
