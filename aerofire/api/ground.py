@@ -8,6 +8,9 @@
     GET  /api/ground/events         append-only event log
     POST /api/ground/alarms/{id}/ack   {"operator"}
     POST /api/ground/poll           {"operator", "vote": "GO"|"NO_GO", "note"}
+    GET  /api/ground/preflight      checks, readiness, hashed readiness report
+    GET  /api/ground/preflight/profile  predicted telemetry profile, range zones, footprint, IIPs
+    POST /api/ground/preflight/{check_id}/waive  {"operator", "reason"}
 
 Nothing here can send to the vehicle.
 """
@@ -23,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from ..config import load_config, load_raw
 from ..physics import atmosphere as A
+from ..receiver import preflight as PRE
 from ..receiver.service import Receiver
 from ..telemetry import icd
 
@@ -151,3 +155,49 @@ def ack(alarm_id: int, body: OperatorIn) -> dict[str, Any]:
 def poll(body: PollIn) -> dict[str, Any]:
     with RECEIVER.lock:
         return _session().poll(body.operator.strip(), body.vote, body.note, _now())
+
+
+# ------------------------------------------------------------------ pre-flight
+
+
+def _ctx() -> dict[str, Any]:
+    return RECEIVER.prepare()
+
+
+@router.get("/api/ground/preflight")
+async def preflight() -> dict[str, Any]:
+    ctx = await asyncio.to_thread(_ctx)
+    with RECEIVER.lock:
+        s = RECEIVER.current
+        if s is None:
+            rc = ctx["range_check"]
+            items = [{"id": "telemetry", "title": "Pad telemetry received", "status": "NOT CHECKED", "evidence": {"reason": "no frames yet"}},
+                     {"id": "profile", "title": "Predicted telemetry profile computed (forecast atmosphere)", "status": "PASS",
+                      "evidence": {"samples": len(ctx["profile"]["samples"]), "atmo_source": ctx["profile"]["atmo_source"]}},
+                     {"id": "range", "title": "Predicted landing footprint and IIPs clear of restricted zones", "status": rc["status"], "evidence": rc}]
+            report = {"mission_id": None, "readiness": "HOLD", "items": items}
+            return {"readiness": "HOLD", "counts": {}, "items": items, "report": report, "report_sha256": PRE.canonical_hash(report)}
+        return PRE.evaluate(s)
+
+
+@router.get("/api/ground/preflight/profile")
+async def preflight_profile(step: int = Query(4, ge=1, le=100)) -> dict[str, Any]:
+    ctx = await asyncio.to_thread(_ctx)
+    prof = ctx["profile"]
+    return {"samples": prof["samples"][::step], "track": prof["track"], "basis": prof["basis"], "atmo_source": prof["atmo_source"],
+            "atmo_note": prof["atmo_note"], "footprint": ctx["footprint"], "iips": ctx["iips"], "iip_model": ctx["iip_model"],
+            "release_point": ctx["release_point"], "range": ctx["range"], "range_check": ctx["range_check"]}
+
+
+class WaiverIn(OperatorIn):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/api/ground/preflight/{check_id}/waive")
+def waive(check_id: str, body: WaiverIn) -> dict[str, Any]:
+    with RECEIVER.lock:
+        s = _session()
+        ids = {i["id"] for i in PRE.evaluate(s)["items"]}
+        if check_id not in ids:
+            raise HTTPException(404, "unknown check")
+        return s.waive(check_id, body.operator.strip(), body.reason.strip(), _now())

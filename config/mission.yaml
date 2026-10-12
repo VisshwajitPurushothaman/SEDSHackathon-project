@@ -211,3 +211,20 @@ sim:
   max_mission_s: 21600.0      # simulation horizon (6 h). Reaching it stops the simulation; it never triggers an action.
   gates_hold_s: 10.0          # [ASSUMPTION] all gates must pass continuously this long before GO_RECOMMENDED
   impact_eval_period_s: 30.0  # how often the ground re-computes impact points (rocket model runs)
+
+prediction:
+  # Pre-flight predicted telemetry profile (aerofire/ground/profile.py): ground physics with the
+  # forecast atmosphere. Bands = envelope of nominal/fast/slow ascent cases + tolerance. All [ASSUMPTION].
+  free_lift_spread: 0.15      # [ASSUMPTION] +/- relative free-lift uncertainty for the fast/slow cases
+  cd_spread: 0.10             # [ASSUMPTION] +/- relative balloon drag-coefficient uncertainty
+  horizon_after_float_s: 3600.0  # [ASSUMPTION] profile length after float entry
+  sample_s: 5.0               # profile sample interval
+  off_nominal_persist_s: 30.0 # [ASSUMPTION] outside the band this long (mission s) -> OFF-NOMINAL caution
+  tolerance:                  # [ASSUMPTION] model/forecast tolerance added to the envelope (dictionary units)
+    GNSS_ALT: 150.0           # m
+    GNSS_VU: 0.6              # m/s
+    BARO_P: {abs: 0.5, rel: 0.02}   # hPa
+    AIR_T: 3.0                # degC (forecast temperature error)
+    TANK_P: 3.0               # bar
+    TANK_T: 3.0               # degC
+    MOTOR_T: 3.0              # degC

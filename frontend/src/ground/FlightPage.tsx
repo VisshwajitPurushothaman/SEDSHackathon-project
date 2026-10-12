@@ -151,18 +151,18 @@ export function FlightCharts({ snap }: { snap: Snapshot | null }) {
   const charts = useMemo(() => {
     const meas = (label: string, key: string, color: string = ui.pass): StripSeries => ({ label, values: col(rows, key), color, points: true });
     return [
-      { title: 'Altitude', unit: 'm', m: 'GNSS_ALT', dec: 0, series: [meas('GNSS_ALT', 'GNSS_ALT'), { label: 'FUSED', values: col(rows, 'fused_altitude'), color: ui.white }] },
-      { title: 'Vertical speed', unit: 'm/s', m: 'GNSS_VU', dec: 2, series: [meas('GNSS_VU', 'GNSS_VU'), { label: 'FUSED', values: col(rows, 'fused_vertical_speed'), color: ui.white }] },
-      { title: 'Tank pressure', unit: 'bar', m: 'TANK_P', dec: 2, series: [meas('TANK_P', 'TANK_P')] },
-      { title: 'Motor temperature', unit: '°C', m: 'MOTOR_T', dec: 1, series: [meas('MOTOR_T', 'MOTOR_T')] },
-      { title: 'Gondola tilt', unit: 'deg', m: 'IMU_TILT', dec: 2, series: [meas('IMU_TILT', 'IMU_TILT')] },
+      { title: 'Altitude', unit: 'm', m: 'GNSS_ALT', dec: 0, band: true, series: [meas('GNSS_ALT', 'GNSS_ALT'), { label: 'FUSED', values: col(rows, 'fused_altitude'), color: ui.white }] },
+      { title: 'Vertical speed', unit: 'm/s', m: 'GNSS_VU', dec: 2, band: true, series: [meas('GNSS_VU', 'GNSS_VU'), { label: 'FUSED', values: col(rows, 'fused_vertical_speed'), color: ui.white }] },
+      { title: 'Tank pressure', unit: 'bar', m: 'TANK_P', dec: 2, band: true, series: [meas('TANK_P', 'TANK_P')] },
+      { title: 'Motor temperature', unit: '°C', m: 'MOTOR_T', dec: 1, band: true, series: [meas('MOTOR_T', 'MOTOR_T')] },
+      { title: 'Gondola tilt', unit: 'deg', m: 'IMU_TILT', dec: 2, band: false, series: [meas('IMU_TILT', 'IMU_TILT')] },
     ];
   }, [rows]);
   return (
     <section className="flex min-h-0 flex-col gap-2" aria-label="Strip charts">
       <div className="flex items-center gap-2">
         <span className="panel-title">Strip charts</span>
-        <span className="text-[11px] text-muted">points = measured · line = fused · grey = LOS</span>
+        <span className="text-[11px] text-muted">points = measured · line = fused · cyan = predicted band · grey = LOS</span>
         <div className="seg ml-auto" role="group" aria-label="Chart window">
           {WINDOWS.map((w) => (
             <button key={w.label} type="button" aria-pressed={win === w.s} onClick={() => setWin(w.s)}>
@@ -172,7 +172,18 @@ export function FlightCharts({ snap }: { snap: Snapshot | null }) {
         </div>
       </div>
       {charts.map((c) => (
-        <StripChart key={c.title} title={c.title} unit={c.unit} x={x} series={c.series} limits={limitsOf(snap?.channels, c.m)} los={los} decimals={c.dec} height={112} />
+        <StripChart
+          key={c.title}
+          title={c.title}
+          unit={c.unit}
+          x={x}
+          series={c.series}
+          band={c.band ? { lo: col(rows, `band_${c.m}_lo`), hi: col(rows, `band_${c.m}_hi`) } : null}
+          limits={limitsOf(snap?.channels, c.m)}
+          los={los}
+          decimals={c.dec}
+          height={112}
+        />
       ))}
     </section>
   );

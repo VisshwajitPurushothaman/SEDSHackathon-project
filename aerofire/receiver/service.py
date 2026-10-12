@@ -9,14 +9,23 @@ import gzip
 import json
 import threading
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable
 
+import numpy as np
+
+from ..ground import profile as PF
+from ..ground.predictor import Predictor
 from ..physics import atmosphere as A
+from ..physics import gates as G
+from ..physics import geo
+from ..physics import rocket as Rk
 from ..telemetry import icd
 from .session import GroundSession
 
 TICK_S = 0.5
+RANGE_PATH = Path(__file__).resolve().parents[2] / "config" / "range.geojson"
 
 
 class Receiver:
@@ -33,11 +42,29 @@ class Receiver:
         self.last_reject: str | None = None
         self.playback_file: str | None = None
         self.playback_done = False
+        self.preflight_ctx: dict[str, Any] = {}
 
     def forecast(self) -> A.AtmosphereProfile:
         if self._forecast is None:
             self._forecast = self._forecast_fn()
         return self._forecast
+
+    def prepare(self) -> dict[str, Any]:
+        """Ground-only pre-flight products (no telemetry needed): forecast, predicted profile, range check."""
+        if self.preflight_ctx:
+            return self.preflight_ctx
+        cfg, fc = self.cfg, self.forecast()
+        prof = PF.predicted_profile(cfg, fc)
+        rng = PF.load_range(RANGE_PATH)
+        e = prof["end"]
+        lat, lon = geo.enu_to_latlon(e["east"], e["north"], cfg.site.lat_deg, cfg.site.lon_deg)
+        fp = PF.wind_drift_landing(Predictor(cfg, fc, np.random.default_rng(0)), e)
+        iips = [asdict(p) for p in G.impact_points(Rk.RocketParams.from_config(cfg), lat, lon, e["alt"], fc.at,
+                                                   cfg.gates.early_burnout_fractions, cfg.gates.approved_area, dt=0.2)]
+        self.preflight_ctx = {"profile": prof, "range": rng, "footprint": fp, "iips": iips,
+                              "release_point": {"lat": lat, "lon": lon, "alt": e["alt"]},
+                              "range_check": PF.range_check(rng, fp, iips), "iip_model": Rk.LABEL}
+        return self.preflight_ctx
 
     def on_datagram(self, data: bytes, recv_utc: float | None = None) -> str:
         recv_utc = self.clock() if recv_utc is None else recv_utc
@@ -56,7 +83,7 @@ class Receiver:
             s = self.sessions.get(mid)
             if s is None:
                 s = GroundSession(self.cfg, self.forecast(), mid, source=self.mode, sessions_dir=self.sessions_dir,
-                                  record=self.mode != "PLAYBACK")
+                                  record=self.mode != "PLAYBACK", preflight_ctx=self.prepare())
                 self.sessions[mid] = s
                 self.current = s
             return s.ingest(frame, recv_utc)
@@ -83,6 +110,7 @@ class Receiver:
                 receiver.on_datagram(data)
 
         self.mode, self.listen = "LIVE UDP", f"udp://{host}:{port}"
+        await asyncio.to_thread(self.prepare)
         transport, _ = await loop.create_datagram_endpoint(Proto, local_addr=(host, port))
         try:
             await self._ticker()
@@ -94,6 +122,7 @@ class Receiver:
         ages, latency and LOS are as recorded), advanced `speed` times faster than real time."""
         self.mode, self.playback_file = "PLAYBACK", path
         rows = load_session(path)
+        await asyncio.to_thread(self.prepare)
         first, t0 = rows[0]["rx"]["utc"], time.time()
         self.clock = lambda: first + (time.time() - t0) * speed
         ticker = asyncio.create_task(self._ticker())

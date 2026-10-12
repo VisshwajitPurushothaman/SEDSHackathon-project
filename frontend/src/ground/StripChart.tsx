@@ -24,6 +24,7 @@ export interface StripProps {
   band?: { lo: (number | null)[]; hi: (number | null)[] } | null;
   decimals?: number;
   height?: number;
+  legend?: boolean;
 }
 
 function hline(u: uPlot, y: number, color: string, dash: number[]) {
@@ -42,7 +43,7 @@ function hline(u: uPlot, y: number, color: string, dash: number[]) {
 }
 
 /** Real-time strip chart: measured points, fused line, yellow/red limit lines, LOS shading, predicted band. */
-export function StripChart({ title, unit, x, series, limits, los, band, decimals = 1, height = 150 }: StripProps) {
+export function StripChart({ title, unit, x, series, limits, los, band, decimals = 1, height = 150, legend = true }: StripProps) {
   const host = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const extra = useRef({ limits, los, band });
@@ -61,7 +62,7 @@ export function StripChart({ title, unit, x, series, limits, los, band, decimals
     const opts: Options = {
       width: el.clientWidth || 400,
       height,
-      legend: { show: true, live: true },
+      legend: { show: legend, live: true },
       cursor: { drag: { x: true, y: false }, points: { size: 5 } },
       scales: { x: { time: false } },
       axes: [
@@ -137,7 +138,7 @@ export function StripChart({ title, unit, x, series, limits, los, band, decimals
       plot.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, height, decimals]);
+  }, [key, height, decimals, legend]);
 
   useEffect(() => {
     const p = plot.current;

@@ -35,6 +35,16 @@ Nothing here sends to the vehicle.
 | `POST /api/ground/alarms/{id}/ack` | `{"operator"}`; `409` if already acknowledged |
 | `POST /api/ground/poll` | `{"operator", "vote": "GO"\|"NO_GO", "note"}`: recorded GO/NO-GO poll; commands nothing |
 
+| `GET /api/ground/preflight` | checks (`ch:<MNEMONIC>` channel health, `agreement`, `profile`, `range`) with NOT CHECKED / PASS / FAIL / WAIVED and evidence, `readiness` (HOLD / READY FOR DIRECTOR REVIEW), `report` and its `report_sha256` (canonical JSON) |
+| `GET /api/ground/preflight/profile?step=4` | predicted telemetry profile (nominal + band per channel), predicted track, landing footprint, IIPs (illustrative rocket model), range zones and the range check |
+| `POST /api/ground/preflight/{check_id}/waive` | `{"operator", "reason"}` (both required) |
+
+Pre-flight evidence is the pad telemetry (`FC_PHASE == PAD`); it freezes at release. The
+profile is ground physics with the forecast atmosphere (no telemetry). During flight,
+history rows carry `band_<MNEMONIC>_lo/hi`; a channel outside its band for
+`prediction.off_nominal_persist_s` raises an OFF-NOMINAL caution, and the live footprint/IIPs
+are re-checked against `config/range.geojson` (illustrative zones, not NOTAM data).
+
 `link`: `aos`, `last_frame_age_s`, `rate_hz` (10 s window), `loss_pct` (missing seq),
 `latency_s` (median minus minimum of receive−send: the laptops' clock offset cannot be
 separated from the minimum delay), `clock_offset_s`, `duplicates`, `out_of_order`,

@@ -67,6 +67,22 @@ alerts, map) and Post-flight, attaching to missions that already exist.
   unrouted for reuse in Step 6. `postflight.spec.mjs` removed (old missions API UI);
   `console.spec.mjs` added (7 checks).
 
+## Step 4: PRE-FLIGHT (done)
+
+- `aerofire/ground/profile.py`: predicted telemetry profile (balloon/tank/motor/ballast physics with
+  the forecast atmosphere; nominal/fast/slow envelope + tolerance from `config/mission.yaml`
+  `prediction:`), band lookup, polygon intersection, range check. Ballast controller moved to
+  `aerofire/physics/float_control.py` (sim re-exports it) so the ground can use it.
+- `config/range.geojson`: site, approved area and 4 illustrative zones (not NOTAM data).
+- `aerofire/receiver/preflight.py`: channel health on pad telemetry (present, rate +-50 %,
+  pad limits on the median, not frozen), GNSS/NavIC/baro chi-square agreement, profile, range,
+  waivers, readiness + SHA-256 report. Session: band fields in history rows, OFF-NOMINAL caution
+  (outside band 30 s), in-flight range re-check of live footprint/IIPs.
+- Demo results: nominal 32/32 PASS, READY; no OFF-NOMINAL. Leak: OFF-NOMINAL TANK_P at MET 75
+  (before the leak detector at about 181 s); its 30 s pad hold is too short for pre-flight to see it.
+- UI: PRE-FLIGHT page (readiness, checks + waive, profile table + band mini-charts, range map
+  with MapLibre over an always-drawn lat/lon grid); Flight strip charts show the cyan band.
+
 ## Run
 
 ```bash
@@ -80,10 +96,10 @@ cd frontend && npx tsc -b --noEmit && npx vitest run
 
 ## Status
 
-- Step 1 `8c1a303`, Step 2 `002e8b4`, Step 3 done. pytest 173 passed; vitest 5; tsc + build pass;
-  Playwright console.spec 7 passed (playback of data/demo_sessions/nominal.jsonl.gz).
-- Next exact step: Step 4 PRE-FLIGHT page: backend `aerofire/receiver/preflight.py` (channel
-  health over pad telemetry, pad sensor agreement via the existing chi-square, predicted
-  telemetry profile + tolerance bands from ground physics with the forecast atmosphere,
-  `config/range.geojson` zones + footprint/IIP intersection, readiness + hashed report),
-  `/api/ground/preflight*` endpoints, band overlay + OFF-NOMINAL caution in flight.
+- Steps 1-4 done (`8c1a303`, `002e8b4`, `399752d`, Step 4 commit). pytest 181 passed; vitest 5;
+  tsc + build pass; console.spec 7 passed.
+- Next exact step: Step 5 TRAJECTORY. Check for an existing `aerofire/ml/` + trained model first
+  (none exists on this branch: Milestone 6 was never started). Then: Laptop A-side dataset with
+  per-mission truth variability (sender/vehicle variability, ASSUMPTION), ground-only features,
+  HistGradientBoosting residual model (30/60/120 s; alt/east/north), docs/ML_RESULTS.md, runtime
+  predictor with fallbacks, firewall rule, TRAJECTORY page (map + forecasts + model card).

@@ -7,6 +7,7 @@
 # remain the ground station's five gates.
 #
 # rate_hz: expected samples per mission second (sim.dt_s = 1 s).
+# pad: false = not expected before release (pre-flight channel health skips it).
 version: 1
 phases: [PAD, ASCENT, FLOAT, IGNITION, DESCENT, LANDED]
 # Limits are not evaluated for this many mission seconds after a phase change (transients
@@ -133,12 +134,12 @@ channels:
     limits:
       PAD:    {yellow: [null, 0.5], red: [null, 0.5], basis: "venting on the pad is abnormal [ASSUMPTION]"}
       ASCENT: {yellow: [null, 0.5], red: [null, null], basis: "venting before float is unexpected [ASSUMPTION]"}
-  VENT_RATE:    {description: Balloon vent mass flow, units: g/s, subsystem: VEHICLE, rate_hz: 1, decimals: 2}
-  BLN_VOL:      {description: Balloon volume (shape estimate), units: m3, subsystem: VEHICLE, rate_hz: 1, decimals: 0}
-  BALLAST_RATE: {description: Ballast release rate, units: g/s, subsystem: VEHICLE, rate_hz: 1, decimals: 2}
+  VENT_RATE:    {description: Balloon vent mass flow, units: g/s, subsystem: VEHICLE, rate_hz: 1, decimals: 2, pad: false}
+  BLN_VOL:      {description: Balloon volume (shape estimate), units: m3, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}
+  BALLAST_RATE: {description: Ballast release rate, units: g/s, subsystem: VEHICLE, rate_hz: 1, decimals: 2, pad: false}
   FC_PHASE:     {description: Flight computer phase, units: "", subsystem: VEHICLE, rate_hz: 1}
   FC_RKT_PHASE: {description: Rocket phase reported by the flight computer, units: "", subsystem: VEHICLE, rate_hz: 1}
   FC_EVENT:     {description: Flight computer events this step, units: "", subsystem: VEHICLE, rate_hz: 1}
-  RKT_ALT:      {description: Rocket altitude (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0}
-  RKT_DR:       {description: Rocket downrange (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0}
-  RKT_SPD:      {description: Rocket speed (illustrative model, not validated), units: m/s, subsystem: VEHICLE, rate_hz: 1, decimals: 0}
+  RKT_ALT:      {description: Rocket altitude (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}
+  RKT_DR:       {description: Rocket downrange (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}
+  RKT_SPD:      {description: Rocket speed (illustrative model, not validated), units: m/s, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}

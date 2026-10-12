@@ -6,7 +6,7 @@ import { errors } from './helpers.mjs';
 
 const PAGES = [
   ['1', 'overview', 'Recent alarms', 'OVERVIEW'],
-  ['2', 'preflight', 'Pre-flight', 'PRE-FLIGHT'],
+  ['2', 'preflight', 'Pre-flight checks', 'PRE-FLIGHT'],
   ['3', 'flight', 'Telemetry', 'FLIGHT'],
   ['4', 'trajectory', 'Trajectory', 'TRAJECTORY'],
   ['5', 'postflight', 'Post-flight', 'POST-FLIGHT'],
@@ -45,11 +45,9 @@ test('flight page: channels, limits, strip charts, keyboard navigation, poll and
   await page.keyboard.press('6');
   await expect(page).toHaveURL(/#\/events$/);
   await expect(page.getByRole('heading', { name: 'Alarms', exact: true })).toBeVisible();
-  const before = await page.getByRole('button', { name: 'ACK' }).count();
-  expect(before).toBeGreaterThan(0);
+  await expect.poll(() => page.getByRole('button', { name: 'ACK' }).count(), { timeout: 90000 }).toBeGreaterThan(0);
   await page.keyboard.press('a');
-  await expect.poll(() => page.getByRole('button', { name: 'ACK' }).count()).toBe(before - 1);
-  await expect(page.getByText('Smoke Operator', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: /^Smoke Operator \d\d:\d\d:\d\dZ$/ }).first()).toBeVisible();
   await page.keyboard.press('3');
   await expect(page).toHaveURL(/#\/flight$/);
   expect(found).toEqual([]);

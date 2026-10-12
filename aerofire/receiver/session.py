@@ -17,9 +17,11 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from ..ground import profile as PF
 from ..ground.station import GroundStation
 from ..physics import atmosphere as A
 from ..telemetry import icd
+from .preflight import PadEvidence
 
 LOS_AFTER_S = 3.0  # silence before declaring loss of signal
 STALE_AFTER_S = 3.0  # channel value older than this (wall s) is STALE
@@ -29,8 +31,15 @@ HISTORY_KEYS = ("GNSS_ALT", "GNSS_VU", "TANK_P", "TANK_T", "MOTOR_T", "IMU_TILT"
 
 class GroundSession:
     def __init__(self, cfg, forecast: A.AtmosphereProfile, mission_id: str, source: str = "LIVE UDP",
-                 sessions_dir: Path | None = None, record: bool = True):
-        self.cfg, self.mission_id, self.source = cfg, mission_id, source
+                 sessions_dir: Path | None = None, record: bool = True, preflight_ctx: dict[str, Any] | None = None):
+        self.cfg, self.mission_id, self.source, self.forecast = cfg, mission_id, source, forecast
+        self.preflight_ctx = preflight_ctx or {}
+        self.pad = PadEvidence()
+        self.waivers: dict[str, dict[str, Any]] = {}
+        self._off_since: dict[str, float] = {}
+        self._off_flagged: set[str] = set()
+        self._range_keys: set[str] = set()
+        self._range_src: tuple | None = None
         self.key, self.genesis = cfg.telemetry.hmac_key_demo, cfg.telemetry.hmac_genesis
         self.dictionary = icd.load_channels()
         self.ground = GroundStation(cfg, forecast, reorder_delay_s=1.0)
@@ -126,6 +135,7 @@ class GroundSession:
         if frame["met_s"] > self.ingested_met:
             self.ingested_met = float(frame["met_s"])
             self.last_met = self.ingested_met
+            self.pad.add(self.ingested_met, frame["ch"], str(frame["ch"].get("FC_PHASE", self.phase())))
             arrival = frame["met_s"] + max(0.0, self.latency_s() or 0.0) * self.time_scale
             for pkt in icd.packets_from_frame(frame, self.lat0, self.lon0, arrival_time=arrival):
                 self.ground.ingest(pkt)
@@ -162,9 +172,16 @@ class GroundSession:
                 self._seen_alerts.add(a["id"])
                 self._raise(utc, a["severity"], f"ground:{a['id']}", a["title"], a.get("evidence") or {}, source="estimator")
         self._check_limits(utc)
+        self._check_range(utc, fr)
         E = fr["estimates"]
         if store:
+            self._check_off_nominal(utc, met)
             row = {"met": met, "phase": fr["phase"], "rec": fr["recommendation"]}
+            prof = self.preflight_ctx.get("profile")
+            for m in PF.PREDICTED:
+                b = PF.band_at(prof, met, m)
+                if b:
+                    row[f"band_{m}_lo"], row[f"band_{m}_hi"] = round(b[0], 4), round(b[2], 4)
             for k in HISTORY_KEYS:
                 c = self.channels.get(k)
                 if c is not None and c["met"] == met:
@@ -202,6 +219,53 @@ class GroundSession:
                             source="limits")
             elif st == "NOMINAL" and prev in ("CAUTION", "ALARM"):
                 self.log(utc, "system", "limit cleared", {"channel": k, "phase": ph, "value": c["value"]})
+
+    def _check_off_nominal(self, utc: float, met: float) -> None:
+        """OFF-NOMINAL caution when a predictable channel stays outside its pre-flight band."""
+        prof = self.preflight_ctx.get("profile")
+        if not prof or self.phase() not in ("PAD", "ASCENT", "FLOAT"):
+            return
+        persist = self.cfg.prediction.off_nominal_persist_s
+        for m in PF.PREDICTED:
+            c = self.channels.get(m)
+            b = PF.band_at(prof, met, m)
+            if c is None or b is None or c["met"] != met or not isinstance(c["value"], (int, float)):
+                continue
+            if b[0] <= c["value"] <= b[2]:
+                self._off_since.pop(m, None)
+                if m in self._off_flagged:
+                    self._off_flagged.discard(m)
+                    self.log(utc, "system", "back inside predicted band", {"channel": m, "value": c["value"]})
+                continue
+            since = self._off_since.setdefault(m, met)
+            if met - since >= persist and m not in self._off_flagged:
+                self._off_flagged.add(m)
+                self._raise(utc, "CAUTION", f"offnom:{m}:{met}", f"OFF-NOMINAL: {m} outside predicted band",
+                            {"value": c["value"], "band": [b[0], b[2]], "nominal": b[1], "since_met": since}, source="prediction")
+
+    def _check_range(self, utc: float, fr: dict[str, Any]) -> None:
+        """In flight: re-check the live landing footprint and IIPs against the range zones."""
+        rng = self.preflight_ctx.get("range")
+        fp, iips = fr.get("landing_footprint"), fr.get("impact_points")
+        src = ((fp or {}).get("t"), tuple((p["lat"], p["lon"]) for p in iips or []))
+        if not rng or src == self._range_src or (not fp and not iips):
+            return
+        self._range_src = src
+        res = PF.range_check(rng, fp, iips)
+        keys = {f"{c['zone']}|{c['what']}" for c in res["conflicts"]}
+        for c in res["conflicts"]:
+            k = f"{c['zone']}|{c['what']}"
+            if k not in self._range_keys:
+                self._raise(utc, "WARNING", f"range:{k}:{self.last_met}", f"Predicted entry into {c['zone']} ({c['what']})", c, source="range")
+        for k in self._range_keys - keys:
+            self.log(utc, "system", "range conflict cleared", {"conflict": k})
+        self._range_keys = keys
+
+    def waive(self, check_id: str, operator: str, reason: str, utc: float) -> dict[str, Any]:
+        w = {"by": operator, "reason": reason, "utc": utc, "met": self.last_met}
+        self.waivers[check_id] = w
+        self.log(utc, operator, "PREFLIGHT WAIVER", {"check": check_id, "reason": reason})
+        return w
 
     def _raise(self, utc: float, severity: str, key: str, title: str, evidence: dict[str, Any], source: str = "link") -> None:
         a = {"id": len(self.alarms) + 1, "key": key, "severity": severity, "title": title, "evidence": evidence,
