@@ -1,9 +1,13 @@
 """Gondola descent under parachute after cut-down.
 
-Quasi-steady terminal velocity at every altitude:
+Terminal velocity at altitude z:
     v_t(z) = sqrt(2 m g(z) / (rho(z) Cd A)),   A = pi D^2 / 4
-Horizontal motion follows the wind (ASSUMPTION, like the balloon). The canopy
-is assumed fully open at cut-down; the free-fall/inflation transient is ignored.
+Truth (`step_dynamic`) integrates the vertical motion with inertia,
+    m dv/dt = -m g + 1/2 rho Cd A v^2      (v < 0 downwards)
+so the gondola accelerates from rest at cut-down and settles to v_t within a
+few seconds. The quasi-steady `step` / `descend` (v = -v_t(z)) are used for
+fast footprint prediction. Horizontal motion follows the wind (ASSUMPTION).
+The canopy is assumed open at cut-down; the inflation transient is ignored.
 """
 from __future__ import annotations
 
@@ -36,6 +40,21 @@ def step(p: ParachuteParams, mass: float, z: float, east: float, north: float, a
     am = atmo(max(zm, 0.0))
     vt_m = terminal_velocity(p, mass, am, max(zm, 0.0))
     return z - vt_m * dt, east + am.u * dt, north + am.v * dt, -vt_m
+
+
+def step_dynamic(p: ParachuteParams, mass: float, z: float, vz: float, east: float, north: float,
+                 atmo: Callable[[float], AtmoSample], dt: float, substeps: int = 20) -> tuple[float, float, float, float]:
+    """(z, vz, east, north) after dt with inertia (semi-implicit Euler substeps)."""
+    h = dt / substeps
+    for _ in range(substeps):
+        a = atmo(max(z, 0.0))
+        drag = 0.5 * a.rho * p.Cd * p.area * vz * vz / mass
+        acc = -gravity(max(z, 0.0)) + (drag if vz < 0 else -drag)
+        vz += acc * h
+        z += vz * h
+        east += a.u * h
+        north += a.v * h
+    return z, vz, east, north
 
 
 def descend(p: ParachuteParams, mass: float, z0: float, east0: float, north0: float, atmo, ground_z: float = 0.0, dt: float = 1.0):

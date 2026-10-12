@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from ..config import load_config
 from ..physics import atmosphere as A
 from . import legacy
+from .missions import router as missions_router
 
 CFG = load_config()
 
@@ -30,6 +31,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False,
 def current_profile() -> A.AtmosphereProfile:
     """Live Open-Meteo profile for the launch site (cached), or a labelled ISA fallback."""
     return A.fetch_profile(CFG, CFG.site.lat_deg, CFG.site.lon_deg)
+
+
+app.include_router(missions_router)
 
 
 @app.get("/api/health")

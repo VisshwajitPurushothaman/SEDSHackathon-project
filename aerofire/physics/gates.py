@@ -1,7 +1,8 @@
 """Launch-commit gates. Evaluated by the ground station on ESTIMATES; the result is a recommendation.
 
 Five commit gates (all must pass, continuously for `gates_hold_s`):
-  1. FLOAT      altitude inside the release band and |v_z| < float_max_vz
+  1. FLOAT      altitude inside the release band and |mean v_z over 60 s| < float_max_vz
+                (a floating balloon bounces about +-1 m/s; floating is a property of the mean)
   2. NAV        GNSS, NavIC and barometric altitude agree (chi-square, 99.9 %), tested on the MEAN
                 residual r_bar over the last N epochs (a single-epoch 99.9 % test fires on ~0.2 % of
                 epochs by construction, i.e. several false alarms per flight):

@@ -160,12 +160,12 @@ This replaces the "more than 10 g lost" rule, which read the simulator's true ma
 ## 6. Launch-commit gates: `aerofire/physics/gates.py`
 The ground station evaluates these on **estimates** and returns a recommendation: `GO_RECOMMENDED`, `NO_GO` or `ABORT_RECOMMENDED`. The software never confirms ignition: `IGNITION_CONFIRMED` is gone, and only the operator's commit leads to ignition.
 
-1. **Float:** altitude in the release band (26–30 km) and |*v_z*| < 1 m/s. *v_z* is a 20 s regression of the GNSS altitude.
+1. **Float:** altitude in the release band (26–30 km) and |mean *v_z*| < 1 m/s, where the mean is taken over 60 s of Kalman-fused vertical speed. A floating zero-pressure balloon bounces by about ±1 m/s; testing the instantaneous value made GO flicker on and off every few seconds, which an operator cannot act on.
 2. **Navigation integrity:** chi-square at 99.9 % (13.816 for 2 dof horizontal GNSS−NavIC; 10.828 for 1 dof vertical GNSS−baro). The baro altitude is the measured pressure inverted through the forecast profile, with σ_model = 30 m (ASSUMPTION).
    - It is tested on the **mean residual over the last 10 epochs**: *d²* = *N* |*r̄*|²/σ².
    - Reason: a single-epoch 99.9 % test fires on about 0.2 % of epochs by construction, which is roughly ten false alarms per flight. The first implementation did exactly that, and the false alarm then masked the real spoofing alert.
-   - Alerts need 5 s of persistent failure and re-arm after 30 s of recovery.
-   - GNSS spoofing (a fix drifting at 2 m/s) is detected 12 s after onset in the scenario test.
+   - Alerts need **20 s** of persistent failure and re-arm after 30 s of recovery. Because consecutive 10-epoch windows overlap, short exceedances are strongly correlated. Measured on pure noise (400 simulated 2.8 h missions): a 5 s persistence raises a false alert in 35 % of missions, 10 s in 0.8 %, 20 s in 0/400 (95 % upper bound 0.75 %). The gate itself (which only blocks GO) still uses every evaluation.
+   - GNSS spoofing (a fix drifting at 2 m/s) blocks the gate within seconds and raises the alert about 30 s after onset in the scenario test.
 3. **Motor temperature** ≥ −10 °C.
 4. **Swing amplitude** ≤ 1.5°.
 5. **Impact safety:** instantaneous impact points for nominal flight, early burnout at 30 % and 60 %, and no ignition must all lie inside the approved polygon (illustrative, not an official range). Recomputed every 30 s at float.
@@ -202,3 +202,60 @@ All five gates must pass continuously for 10 s before `GO_RECOMMENDED`.
 - `aerofire/telemetry/sensors.py` is the only bridge: it adds noise and faults.
 - `aerofire/ground` builds every number from records alone.
 - `tests/test_firewall.py` parses imports with `ast` and fails if `aerofire.ground` imports `aerofire.sim` (or if physics imports sim, ground or api). The checker is itself tested on synthetic violations.
+
+---
+
+## 10. Telemetry chain (Milestone 2)
+1. **Sensors** (`telemetry/sensors.py`) add Gaussian noise to truth. All σ values are ASSUMPTIONS from config `sensors`.
+2. **Onboard recorder** (`telemetry/recorder.py`): every record gets `seq` and is stored *before* it is transmitted.
+   - Chain: mac_n = HMAC-SHA256(key, mac_(n−1) ‖ canonical_json(record_n)), with mac_(−1) = HMAC(key, genesis).
+   - Canonical JSON uses sorted keys and excludes `mac` and the ground's receiver metadata `rx`.
+   - The key in config is a **demo key, not secure**.
+   - Tests: editing, deleting, reordering, forging a MAC or using another key are each detected at the first affected seq.
+3. **Link emulator** (`telemetry/link.py`, world side):
+   - blackout windows drop everything in them;
+   - independent loss *p*;
+   - latency N(μ, σ) truncated at 0;
+   - RSSI = *P_tx* + *G* − FSPL(*d*) + N(0, σ), with FSPL = 20 log₁₀ *d*_km + 20 log₁₀ *f*_MHz + 32.44.
+   - Tests: blackout exactness, loss rate, mean latency, 100× range = 40 dB.
+4. **Ground** receives only what the link delivers, re-orders by event time (1 s buffer), and fuses.
+
+## 11. Ground position estimator (`ground/estimator.py`)
+- Constant-velocity Kalman filter in local ENU: state [*e, n, u, v_e, v_n, v_u*], white-acceleration process noise.
+  - *q* = 0.05 (m/s²)²·s while ascending or floating, 20 after cut-down. The phase comes from the vehicle's flight-computer record. A single small *q* could not follow the parachute deceleration and excluded every sensor.
+- Measurements:
+  - GNSS and NavIC (3-D, σ from config);
+  - barometric altitude: the measured pressure inverted through the forecast profile, σ_model 30 m.
+- **Gating:** innovation NIS against χ²₀.₉₉₉ (3 dof for fixes, 1 dof for baro).
+- **Divergence:** if both fixes fail against the filter but agree with each other, the *filter* is wrong. It is re-initialised on their weighted mean and no sensor is penalised.
+- **Fault attribution** (two horizontal sources):
+  - *Step* fault: isolated by jump detection. One sensor's epoch-to-epoch change is inconsistent with the filter velocity (χ²₃ on *z_t* − *z_(t−1)* − *v*Δ*t*) while the other's is not. That sensor goes through the trust ladder (ACCEPTED → SUSPECT after 2 failures → EXCLUDED after 5 → RE-TRUSTED after 30 agreeing epochs).
+  - *Slow drift* (spoofer walking the fix away): **detectable but not isolatable** with two sources. It is absorbed by the velocity state, so nothing observable says which sensor is lying. After 10 epochs of pairwise disagreement both become SUSPECT; both are fused with variance inflated by the squared half-disagreement and **floored** at that value, so the reported uncertainty covers both sensors (repeated updates would otherwise shrink it, because the error is systematic, not noise).
+  - Tested on a fault matrix of 0.5 and 2 m/s drift, 40 and 300 m steps, and no fault, over 3 seeds each:
+    - steps: GNSS excluded, error ≤ 7.4 m, then re-trusted;
+    - drifts: both SUSPECT, no wrong exclusion, truth inside 3σ;
+    - no fault: nothing flagged.
+  - The first two attribution designs (gate against the live filter; gate against a "clean" reference) both **excluded the honest NavIC** during a slow GNSS drift. They are recorded here because that failure mode is the reason for the current design.
+- **RTS smoother** (`rts_smooth`): the same filter run forward over all recovered records, then the Rauch–Tung–Striebel backward pass; phase-aware. On a nominal flight with a 10-minute blackout its error against truth is 0.9 m median horizontal (3.7 m p99) and 0.8 m vertical (4.4 m p99).
+
+## 12. Blackout prediction (`ground/predictor.py`)
+- When no fix has been fused for 5 s (`estimator.stale_after_s`), position, altitude and vertical speed switch to **PREDICTED** from a particle ensemble (300 particles). Every other stale value becomes **UNKNOWN**, with its last value and age shown, never as a live value.
+- Particles start from the Kalman state and covariance at the last fix. Each carries a persistent forecast-wind error (σ 3 m/s per component) and a climb-rate error (σ 0.5 m/s), all ASSUMPTIONS.
+- Propagation follows the last known phase:
+  - ascent towards the model float altitude, which the ground computes from the vehicle design and the forecast;
+  - float held;
+  - descent at parachute terminal velocity.
+  - Horizontal motion is forecast wind plus the particle's error. The forecast is tabulated every 50 m, so the ensemble propagates with numpy.
+- Regions: Gaussian fit, ellipses at 50/90/99 % (χ²₂ = 1.386, 4.605, 9.210). Calibration test: on Gaussian clouds the achieved coverage is within 2.5 % of the claim at every level.
+- Landing footprint: 100 particles descend under the parachute from the current state ("if cut down now" before cut-down; actual during descent).
+- At reconnect the ground scores its own prediction (error to the first fix, inside 50/90/99 %).
+- Example: a 601 s blackout during descent. Prediction error at reconnect was 115 m (ground-measured) against 112 m from truth, and truth was inside all regions at all 20 snapshots. That 100 % coverage at the 50 % level suggests the regions are conservative, mainly because the simulator's truth wind equals the forecast (see LIMITS).
+
+## 13. Recovery and post-flight (`ground/recovery.py`, `ground/postflight.py`)
+- Recovery downloads every record that did not arrive live, in two stages:
+  1. every 10th missing record first, in batches of 200 (a rough picture);
+  2. the rest, in batches of 200.
+- A failed batch is retried up to 3 times (5 % failure probability per transfer, ASSUMPTION); otherwise its records are listed as lost.
+- Every record is HMAC-verified against its predecessor, then the whole chain is verified from genesis.
+- Post-flight requirements (config `requirements`) evaluate to PASS / FAIL / NOT TESTED / INCONCLUSIVE with evidence. They are computed **without truth**, from the reconstruction and the recovered records. The gate audit (REQ-GATE-1) uses exactly the live gate definitions; an earlier version checked the instantaneous rather than the mean vertical speed and reported a false violation.
+- The grading scorecard (`evaluation/scorecard.py`) is the only code that compares with truth. It is served only when `api.truth_enabled`.

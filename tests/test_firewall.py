@@ -12,9 +12,10 @@ PKG_ROOT = Path(__file__).resolve().parent.parent / "aerofire"
 
 RULES = {
     # package prefix          : forbidden import prefixes
-    "aerofire.ground": ["aerofire.sim"],
+    "aerofire.ground": ["aerofire.sim", "aerofire.evaluation", "aerofire.mission_runner"],
     "aerofire.physics": ["aerofire.sim", "aerofire.ground", "aerofire.api"],
     "aerofire.telemetry": ["aerofire.ground"],
+    "aerofire.evaluation": ["aerofire.sim", "aerofire.ground"],
 }
 
 

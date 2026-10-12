@@ -101,3 +101,20 @@ Decisions to flag now:
 
 1. Delete `tempCodeRunnerFile.py` (dead CLI copy of the engine)?
 2. Remove the committed `__pycache__/backend.cpython-312.pyc` from git and add `__pycache__/` to `.gitignore`?
+
+---
+
+## 7. Telemetry path audit (start of Milestone 2, after commit `748e68a`)
+
+Every path data takes from the vehicle to a screen, as of Milestone 1:
+
+| # | Path | What happens | Gap against the brief |
+|---|---|---|---|
+| T1 | `MissionSim.step()` → `SensorSuite.sample()` | Truth frame becomes noisy sensor dicts (GNSS, NavIC, baro, air temperature, IMU, tank, motor, balloon, rocket, flight-computer phase) | No sequence numbers, no dropouts, no link RSSI |
+| T2 | sensor dicts → `GroundStation.ingest()` | Called directly in lockstep inside `legacy.execute_flight_engine` | **No onboard recorder, no hash chain, no link** (no loss, latency or blackout), so the ground never has to cope with missing data |
+| T3 | `GroundStation.frame()` | Estimates with status MEASURED/FUSED/PREDICTED, five gates, abort criterion, alerts | Position is the raw GNSS fix (no fusion, no integrity trust ladder); no prediction when data stops; "PREDICTED" is used only for forecast wind |
+| T4 | `legacy_frame()` → `/api/simulate`, `/api/stream` | Flattened to the old pre-flight schema; SSE has `id:` and `event: end` | Ends at the first recommendation, so it cannot carry a flight; `Last-Event-ID` is not honoured; no operator commands |
+| T5 | Frontend `openStream` | Closes on terminal frame or `end` event | Fine for pre-flight; flight needs a mission stream |
+| T6 | Post-flight | none | No recovery, reconstruction, requirement verification or export |
+
+Milestone 2 replaces T2–T4 with: sensors → **onboard recorder** (seq + HMAC chain, written before transmit) → **link emulator** (loss, latency, blackouts, RSSI) → **ground** (Kalman filter with chi-square integrity and trust ladder, particle prediction during blackout) → **mission API** (SSE with resume, commit/hold/terminate, recovery, post-flight, export, evaluator-only truth). T4 stays for the pre-flight console.

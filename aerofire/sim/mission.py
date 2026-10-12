@@ -189,7 +189,7 @@ class MissionSim:
                 self._event("balloon at full volume: venting through base ducts (float)")
             self._step_swing(dt)
         elif self.phase == "DESCENT":
-            z, e, n, vz = Ds.step(self.chute, self.descent_mass, self.bstate.z, self.bstate.east, self.bstate.north, self.atmo, dt)
+            z, vz, e, n = Ds.step_dynamic(self.chute, self.descent_mass, self.bstate.z, self.vz, self.bstate.east, self.bstate.north, self.atmo, dt)
             if z <= self.ground_z:
                 z, vz = self.ground_z, 0.0
                 self.phase = "LANDED"

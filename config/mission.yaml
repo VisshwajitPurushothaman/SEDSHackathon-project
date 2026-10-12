@@ -112,11 +112,13 @@ leak_detector:
 gates:
   release_band_m: [26000.0, 30000.0]  # [ASSUMPTION] altitude band in which release is allowed
   float_max_vz_m_s: 1.0       # [ASSUMPTION per brief]
+  float_vz_window_s: 60.0     # [ASSUMPTION] the float test uses the mean v_z over this window (a floating balloon bounces ~+-1 m/s)
   swing_max_amplitude_deg: 1.5  # [ASSUMPTION per brief]
   chi2_2dof_999: 13.816       # [source: chi-square quantile, p = 0.999, 2 dof]
   chi2_1dof_999: 10.828       # [source: chi-square quantile, p = 0.999, 1 dof]
   nav_window_epochs: 10       # [ASSUMPTION] chi-square tested on the mean residual of the last 10 epochs
-  nav_alert_persist_s: 5.0    # [ASSUMPTION] integrity alert only after the gate has failed this long
+  nav_alert_persist_s: 20.0   # [ASSUMPTION] integrity alert after this long failing. Measured on noise only (400 x 2.8 h): 5 s -> 35 % of
+                              # missions raise a false alert, 10 s -> 0.8 %, 20 s -> 0/400 (95 % upper bound 0.75 %)
   early_burnout_fractions: [0.3, 0.6]  # [ASSUMPTION] failure cases for the impact-safety gate
   # Approved impact area (lat, lon), closed polygon. ILLUSTRATIVE, not an official range.
   approved_area: [[13.00, 79.60], [14.60, 79.60], [14.60, 82.50], [13.00, 82.50]]  # [ASSUMPTION]
@@ -136,6 +138,70 @@ rocket:
 descent:
   parachute_cd: 1.5           # [ASSUMPTION] round parachute
   parachute_diameter_m: 6.0   # [ASSUMPTION]
+
+telemetry:
+  hmac_key_demo: "aerofire-demo-key-NOT-SECURE"   # demo key, NOT secure: real flights need a provisioned secret
+  hmac_genesis: "AERO-FIRE-GENESIS"               # chain anchor for the first record
+
+link:
+  # RF downlink emulator. All values are ASSUMPTIONS for the demo.
+  packet_loss: 0.01           # [ASSUMPTION] independent loss probability per record
+  latency_s: 0.4              # [ASSUMPTION] mean one-way latency
+  latency_jitter_s: 0.15      # [ASSUMPTION] latency standard deviation (truncated at 0)
+  tx_power_dbm: 30.0          # [ASSUMPTION] 1 W transmitter
+  antenna_gain_db: 9.0        # [ASSUMPTION] sum of TX and RX antenna gains
+  freq_mhz: 2400.0            # [ASSUMPTION] S-band
+  rssi_sigma_db: 2.0          # [ASSUMPTION] fading
+  station_lat_deg: 13.72      # [ASSUMPTION] ground station at the launch site
+  station_lon_deg: 80.23
+  station_alt_m: 10.0
+
+recovery:
+  # Post-flight download of records the ground did not receive live.
+  batch_size: 200             # [per brief]
+  sparse_stride: 10           # [per brief] every 10th missing record first (rough picture)
+  batch_failure_prob: 0.05    # [ASSUMPTION] recovery link: probability a batch transfer fails
+  max_retries: 3              # [ASSUMPTION]
+
+estimator:
+  # Ground Kalman filter (ENU constant-velocity) and integrity monitoring.
+  accel_psd_h: 0.05           # [ASSUMPTION] horizontal process noise, (m/s^2)^2 * s
+  accel_psd_v: 0.05           # [ASSUMPTION] vertical process noise
+  accel_psd_descent: 20.0     # [ASSUMPTION] process noise after cut-down (free fall, then deceleration)
+  suspect_after: 2            # [ASSUMPTION] consecutive chi-square failures -> SUSPECT
+  exclude_after: 5            # [ASSUMPTION] consecutive failures -> EXCLUDED
+  retrust_after: 30           # [ASSUMPTION] consecutive passes while excluded -> RE-TRUSTED
+  disagree_persist: 10        # [ASSUMPTION] epochs of GNSS/NavIC disagreement before both become SUSPECT
+  stale_after_s: 5.0          # [ASSUMPTION] no position update for this long -> estimates become PREDICTED
+
+predictor:
+  # Particle ensemble of the balloon model used when telemetry stops (blackout).
+  particles: 300              # [ASSUMPTION]
+  wind_sigma_m_s: 3.0         # [ASSUMPTION] forecast wind error per component (persistent per particle)
+  vz_sigma_m_s: 0.5           # [ASSUMPTION] vertical speed error (persistent per particle)
+  footprint_particles: 100    # [ASSUMPTION] particles used for the landing footprint
+  footprint_dt_s: 20.0        # [ASSUMPTION] coarse step for the descent of each particle
+  update_period_s: 10.0       # [ASSUMPTION] how often the ensemble statistics are recomputed
+
+api:
+  default_time_scale: 60.0    # mission seconds per wall second for /api/missions (0 = as fast as possible)
+  stream_period_s: 5.0        # mission seconds between SSE frames
+  truth_enabled: true         # evaluator-only /truth endpoint; set false for an operator deployment
+
+requirements:
+  # Verified post-flight (GET /api/missions/{id}/postflight): PASS | FAIL | NOT TESTED | INCONCLUSIVE.
+  - id: REQ-LEAK-1
+    text: "A pressurant leak present before float is detected before float"
+  - id: REQ-PRED-1
+    text: "During telemetry blackouts the 90 % prediction region contains the reconstructed position"
+  - id: REQ-LAND-1
+    text: "The landing point lies inside the 90 % landing footprint predicted at cut-down"
+  - id: REQ-DATA-1
+    text: "All onboard records are recovered after landing"
+  - id: REQ-DATA-2
+    text: "The onboard recorder hash chain verifies end to end"
+  - id: REQ-GATE-1
+    text: "No GO recommendation was issued while a gate condition was false (checked on reconstructed data)"
 
 sim:
   dt_s: 1.0                   # integration step
