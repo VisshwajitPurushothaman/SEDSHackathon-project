@@ -51,6 +51,8 @@ class MissionRun:
         self.faults = Faults.from_dict(faults)
         self.seed = seed
         self.time_scale = self.cfg.api.default_time_scale if time_scale is None else float(time_scale)
+        # Stream at most ~8 frames per wall second whatever the time scale (frames are ~10 kB of JSON).
+        self.stream_period = max(self.cfg.api.stream_period_s, self.time_scale / 8.0) if self.time_scale > 0 else self.cfg.api.stream_period_s
 
         self.sim = MissionSim(self.cfg, profile, self.faults, seed=seed)
         self.sensors = SensorSuite(self.cfg, np.random.default_rng(seed + 1), self.faults)
@@ -148,7 +150,7 @@ class MissionRun:
         for ev in truth.events:
             self.log("vehicle", ev)
         key = (fr["phase"], fr["recommendation"], len(fr["alerts"]), fr["predicting"], fr["operator"].get("state"))
-        if key != self._last_frame_key or truth.t % self.cfg.api.stream_period_s < 1e-9:
+        if key != self._last_frame_key or truth.t % self.stream_period < 1e-9:
             self._push_frame(fr)
             self._last_frame_key = key
         finished = False
@@ -170,6 +172,12 @@ class MissionRun:
 
     def _push_frame(self, fr: dict[str, Any]) -> None:
         f = dict(fr)
+        # Slim duplicated payload: impact points are already top-level.
+        if f.get("gates", {}).get("impact", {}).get("evidence", {}).get("points") is not None:
+            f["gates"] = dict(f["gates"])
+            imp = dict(f["gates"]["impact"])
+            imp["evidence"] = {k: v for k, v in imp["evidence"].items() if k != "points"}
+            f["gates"]["impact"] = imp
         f["id"] = len(self.frames) + 1
         f["mission_id"] = self.id
         f["state"] = self.state

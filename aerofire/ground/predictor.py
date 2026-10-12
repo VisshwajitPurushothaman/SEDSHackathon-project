@@ -28,7 +28,7 @@ from ..physics import geo
 LEVELS = {50: 1.386294, 90: 4.605170, 99: 9.210340}
 
 
-def ellipse(points: np.ndarray, lat0: float, lon0: float, level: int, n_vertices: int = 48) -> dict[str, Any]:
+def ellipse(points: np.ndarray, lat0: float, lon0: float, level: int, n_vertices: int = 32) -> dict[str, Any]:
     """Gaussian-fit ellipse (lat/lon polygon) containing `level` % of a 2-D cloud of (east, north) points."""
     mu = points.mean(axis=0)
     cov = np.cov(points.T) + np.eye(2) * 1e-6

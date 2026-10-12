@@ -1,4 +1,4 @@
-import { Flame } from 'lucide-react';
+import { Flame, OctagonX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 const HOLD_MS = 1500;
@@ -9,7 +9,18 @@ const C = 2 * Math.PI * R;
  * Press and hold for 1.5 s to commit. Releasing early (pointer up/leave, key
  * up, blur) cancels and the ring drains. Works with mouse, touch, Space and Enter.
  */
-export function HoldToCommit({ onCommit, disabled = false }: { onCommit: () => void; disabled?: boolean }) {
+interface Props {
+  onCommit: () => void;
+  disabled?: boolean;
+  /** Visible label (default "Hold to commit"). */
+  label?: string;
+  /** Accessible name (default: commit ignition). */
+  ariaLabel?: string;
+  /** armed (green, commit) or fail (red, e.g. terminate). */
+  tone?: 'armed' | 'fail';
+}
+
+export function HoldToCommit({ onCommit, disabled = false, label = 'Hold to commit', ariaLabel = 'Hold for 1.5 seconds to commit ignition', tone = 'armed' }: Props) {
   const [progress, setProgress] = useState(0);
   const holding = useRef(false);
   const start = useRef(0);
@@ -68,8 +79,10 @@ export function HoldToCommit({ onCommit, disabled = false }: { onCommit: () => v
       onBlur={stop}
       onClick={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
-      aria-label="Hold for 1.5 seconds to commit ignition"
-      className="group flex select-none items-center gap-3 rounded-xl border border-armed/50 bg-armed/10 py-2 pl-2 pr-4 text-left transition-colors duration-200 ease-out hover:bg-armed/15 disabled:opacity-40"
+      aria-label={ariaLabel}
+      className={`group flex select-none items-center gap-3 rounded-xl border py-2 pl-2 pr-4 text-left transition-colors duration-200 ease-out disabled:opacity-40 ${
+        tone === 'armed' ? 'border-armed/50 bg-armed/10 hover:bg-armed/15' : 'border-fail/50 bg-fail/10 hover:bg-fail/15'
+      }`}
     >
       <span className="relative grid h-12 w-12 place-items-center">
         <svg viewBox="0 0 52 52" className="absolute inset-0 -rotate-90" aria-hidden>
@@ -78,17 +91,17 @@ export function HoldToCommit({ onCommit, disabled = false }: { onCommit: () => v
             cx="26"
             cy="26"
             r={R}
-            className="fill-none stroke-armed"
+            className={`fill-none ${tone === 'armed' ? 'stroke-armed' : 'stroke-fail'}`}
             strokeWidth={3}
             strokeLinecap="round"
             strokeDasharray={C}
             strokeDashoffset={C * (1 - progress)}
           />
         </svg>
-        <Flame size={18} className="text-armed" aria-hidden />
+        {tone === 'armed' ? <Flame size={18} className="text-armed" aria-hidden /> : <OctagonX size={18} className="text-fail" aria-hidden />}
       </span>
       <span>
-        <span className="block text-[13px] font-semibold text-ink">Hold to commit</span>
+        <span className="block text-[13px] font-semibold text-ink">{label}</span>
         <span className="num block text-[11px] text-muted">
           {progress > 0 && progress < 1 ? `${secondsLeft.toFixed(1)} s` : 'press & hold 1.5 s'}
         </span>

@@ -127,3 +127,11 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* MapLibre popup in the console's dark style. */
+.aerofire-popup .maplibregl-popup-content {
+  @apply rounded-md border border-line bg-panel px-2 py-1 font-sans text-[11px] text-ink shadow-lg;
+}
+.aerofire-popup .maplibregl-popup-tip {
+  display: none;
+}

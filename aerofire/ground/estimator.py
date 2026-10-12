@@ -64,7 +64,7 @@ class Trust:
 
     def to_dict(self) -> dict[str, Any]:
         return {"state": self.state, "consecutive_fails": self.fails, "consecutive_passes": self.passes,
-                "retrusted_at": self.retrusted_at, "history": self.history[-10:]}
+                "retrusted_at": self.retrusted_at, "history": self.history[-5:]}
 
 
 class PositionFilter:

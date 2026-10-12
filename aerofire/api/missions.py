@@ -141,7 +141,8 @@ async def stream(mission_id: str, last_event_id: str | None = Header(default=Non
                  from_id: int | None = Query(default=None, alias="from")):
     """SSE of ground frames. `id:` = frame id; resumes after Last-Event-ID; ends with `event: end`."""
     m = get_mission(mission_id)
-    start = from_id if from_id is not None else (int(last_event_id) if last_event_id and last_event_id.isdigit() else 0)
+    # On an automatic reconnect the browser sends Last-Event-ID; it wins over the initial ?from=.
+    start = int(last_event_id) if last_event_id and last_event_id.isdigit() else (from_id or 0)
 
     async def gen():
         i = start  # frames[i] has id i + 1

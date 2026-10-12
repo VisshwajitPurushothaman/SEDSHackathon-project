@@ -41,6 +41,24 @@ def health() -> dict[str, str]:
     return {"status": "AERO-FIRE Backend Operational"}
 
 
+@app.get("/api/config")
+def public_config() -> dict[str, Any]:
+    """Public parts of config/mission.yaml the consoles need (limits, site, areas). No secrets, no truth."""
+    c = CFG
+    return {
+        "site": c.site.to_dict(),
+        "gates": {k: v for k, v in c.gates.to_dict().items()},
+        "motor": {"T_min_qualified_c": c.motor.T_min_qualified_c},
+        "rocket": {"rail_azimuth_deg": c.rocket.rail_azimuth_deg, "rail_elevation_deg": c.rocket.rail_elevation_deg,
+                   "label": "illustrative model, not validated"},
+        "balloon": {"V_max_m3": c.balloon.V_max_m3},
+        "tank": {"P0_bar": c.tank.P0_bar},
+        "link": {"station_lat_deg": c.link.station_lat_deg, "station_lon_deg": c.link.station_lon_deg},
+        "api": {"default_time_scale": c.api.default_time_scale, "truth_enabled": c.api.truth_enabled},
+        "sensors": {"vent_rate_sigma_kg_s": c.sensors.vent_rate_sigma_kg_s},
+    }
+
+
 class SimulationRequest(BaseModel):
     puncture_um: float = 0.0
 

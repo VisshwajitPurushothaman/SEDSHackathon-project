@@ -120,7 +120,7 @@ def test_ellipse_levels_are_calibrated_for_gaussian_clouds():
         cov = np.mean([inside_ellipse(cloud, tuple(p), lvl) for p in test])
         assert cov == pytest.approx(lvl / 100.0, abs=0.025)
     poly = ellipse(cloud, CFG.site.lat_deg, CFG.site.lon_deg, 90)["polygon"]
-    assert len(poly) == 48
+    assert len(poly) == 32
 
 
 def test_predictor_spreads_with_time_and_drifts_with_wind():

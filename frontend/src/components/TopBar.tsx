@@ -70,7 +70,35 @@ function ModeSwitch() {
   );
 }
 
-export function TopBar() {
+export type View = 'preflight' | 'flight' | 'postflight';
+
+const TABS: { id: View; label: string; href: string }[] = [
+  { id: 'preflight', label: 'Pre-flight', href: '#/' },
+  { id: 'flight', label: 'Flight', href: '#/flight' },
+  { id: 'postflight', label: 'Post-flight', href: '#/postflight' },
+];
+
+function Tabs({ view }: { view: View }) {
+  return (
+    <nav aria-label="Mission windows">
+      <ul className="seg">
+        {TABS.map((t) => (
+          <li key={t.id}>
+            <a
+              href={t.href}
+              aria-current={view === t.id ? 'page' : undefined}
+              className={`block rounded-md px-3 py-1 text-xs font-medium transition-colors duration-150 ${view === t.id ? 'bg-line text-ink' : 'text-muted hover:text-ink'}`}
+            >
+              {t.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+export function TopBar({ view = 'preflight' }: { view?: View }) {
   return (
     <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-panel/70 px-4 py-2.5 backdrop-blur-panel">
       <div className="flex items-center gap-2.5">
@@ -81,9 +109,10 @@ export function TopBar() {
           AERO-FIRE <span className="font-medium text-muted">Flight Director</span>
         </h1>
       </div>
-      <MissionClock />
+      <Tabs view={view} />
+      {view === 'preflight' && <MissionClock />}
       <div className="ml-auto flex flex-wrap items-center gap-3">
-        <ModeSwitch />
+        {view === 'preflight' && <ModeSwitch />}
         <ConnectionBadge />
         <span
           className="inline-flex items-center gap-1.5 rounded-full border border-info/40 bg-info/10 px-2.5 py-1 text-xs font-semibold tracking-wider text-info"

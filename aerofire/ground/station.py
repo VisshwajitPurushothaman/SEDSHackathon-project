@@ -338,6 +338,7 @@ class GroundStation:
             E["swing_amplitude"] = est(None, "deg", Status.UNKNOWN, None, "imu stale", self._age("imu", now))
         rk = self.latest.get("rocket")
         if rk:
+            E["rocket_azimuth"] = est(self.rparams.azimuth_deg, "deg", Status.PREDICTED, None, "rail azimuth (config)")
             for key, f, unit in (("rocket_downrange", "downrange", "m"), ("rocket_altitude", "up", "m"), ("rocket_speed", "speed", "m/s")):
                 E[key] = est(rk["values"][f], unit, Status.PREDICTED, None, Rk.LABEL, now - rk["event_time"])
         self._link_estimates(now, E)
