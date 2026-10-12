@@ -6,3 +6,7 @@ __pycache__/
 
 # Local artefacts
 *.log
+
+# Telemetry recordings (demo sessions under data/demo_sessions/ are committed)
+data/sessions/
+data/vehicle/

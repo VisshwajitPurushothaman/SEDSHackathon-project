@@ -18,6 +18,41 @@ Invoke-RestMethod "http://127.0.0.1:8000/api/missions/$missionId/frame"
 
 ---
 
+## Ground station (receiver)
+
+Telemetry arrives as ICD v1 UDP frames ([ICD.md](ICD.md)); `python backend.py` listens on
+UDP 5600 (`--udp-port`, `--no-udp`, `--playback FILE`, `--playback-speed`, `--snapshot`).
+Nothing here sends to the vehicle.
+
+| Endpoint | Meaning |
+|---|---|
+| `WS /ws/telemetry?hz=4` | ground-side snapshots at 2–10 Hz: `{receiver, mission_id, source (LIVE UDP / PLAYBACK), recording, utc, met, met_status, fc_phase, link, channels, ground, alarms, active_alarms, polls}` |
+| `GET /api/ground/state` | one snapshot (same object) |
+| `GET /api/ground/status` | receiver mode, listen address, rejected datagrams, sessions |
+| `GET /api/ground/history?max_points=3000` | decimated per-step rows (`met`, dictionary channels, `fused_altitude`, `fused_vertical_speed` with sigma, phase, recommendation), fused track, LOS periods |
+| `GET /api/ground/dictionary` | `config/channels.yaml` |
+| `GET /api/ground/events` | append-only event log |
+| `POST /api/ground/alarms/{id}/ack` | `{"operator"}`; `409` if already acknowledged |
+| `POST /api/ground/poll` | `{"operator", "vote": "GO"\|"NO_GO", "note"}`: recorded GO/NO-GO poll; commands nothing |
+
+`link`: `aos`, `last_frame_age_s`, `rate_hz` (10 s window), `loss_pct` (missing seq),
+`latency_s` (median minus minimum of receive−send: the laptops' clock offset cannot be
+separated from the minimum delay), `clock_offset_s`, `duplicates`, `out_of_order`,
+`hmac_failures`, `chain_breaks`, `gaps` (`[[first, last], ...]`), `los_periods` (LOS after
+3 s of silence).
+
+`channels[]`: `mnemonic, value, units, subsystem, status (MEASURED / STALE / UNKNOWN), age_s,
+met, limit (NOMINAL / CAUTION / ALARM / NO_LIMIT), limits (current phase), known`. Mnemonics
+missing from the dictionary are shown raw with `known: false`.
+
+`ground`: the estimator frame (status-labelled estimates, gates, recommendation, trust,
+footprint, prediction) as documented under `/frame` below.
+
+The `/api/missions/*` endpoints below remain for the in-process simulator used by tests;
+the ground-station console does not create missions or inject faults.
+
+---
+
 ## Health and legacy pre-flight endpoints
 
 These are kept for the pre-flight console. They now run on the new physics and report ground-side estimates.

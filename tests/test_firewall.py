@@ -16,6 +16,10 @@ RULES = {
     "aerofire.physics": ["aerofire.sim", "aerofire.ground", "aerofire.api"],
     "aerofire.telemetry": ["aerofire.ground"],
     "aerofire.evaluation": ["aerofire.sim", "aerofire.ground"],
+    # Laptop B receiver: telemetry frames only; truth lives on Laptop A (sender/).
+    "aerofire.receiver": ["aerofire.sim", "aerofire.evaluation", "aerofire.mission_runner", "sender"],
+    "aerofire.api.ground": ["aerofire.sim", "aerofire.evaluation", "aerofire.mission_runner", "sender"],
+    "aerofire.telemetry.icd": ["aerofire.sim", "aerofire.ground", "sender"],
 }
 
 

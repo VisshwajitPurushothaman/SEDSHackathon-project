@@ -1,0 +1,144 @@
+# AERO-FIRE telemetry dictionary (ICD v1, docs/ICD.md).
+#
+# limits: per flight-computer phase (PAD, ASCENT, FLOAT, IGNITION, DESCENT, LANDED) or
+# `default`. yellow/red = [low, high]; null = no limit on that side. A phase entry
+# replaces `default` for that phase. Every limit carries a basis: a config/mission.yaml
+# source or [ASSUMPTION]. Limits drive display colour and alarms only; launch gates
+# remain the ground station's five gates.
+#
+# rate_hz: expected samples per mission second (sim.dt_s = 1 s).
+version: 1
+phases: [PAD, ASCENT, FLOAT, IGNITION, DESCENT, LANDED]
+# Limits are not evaluated for this many mission seconds after a phase change (transients
+# at release, float entry, cut-down). [ASSUMPTION]; FLOAT = config gates.float_vz_window_s.
+settle_s: {default: 10, FLOAT: 60}
+
+channels:
+  # ---------------------------------------------------------------- NAV
+  GNSS_LAT:  {description: GNSS latitude, units: deg, subsystem: NAV, rate_hz: 1, decimals: 6}
+  GNSS_LON:  {description: GNSS longitude, units: deg, subsystem: NAV, rate_hz: 1, decimals: 6}
+  GNSS_ALT:
+    description: GNSS altitude
+    units: m
+    subsystem: NAV
+    rate_hz: 1
+    decimals: 0
+    limits:
+      default: {yellow: [null, 30500], red: [null, 32000], basis: "[ASSUMPTION] above the release band (config gates.release_band_m) = unplanned"}
+      FLOAT:   {yellow: [26000, 30000], red: [25000, 31000], basis: "yellow = release band, config gates.release_band_m; red [ASSUMPTION]"}
+  GNSS_VN:
+    {description: GNSS north velocity, units: m/s, subsystem: NAV, rate_hz: 1, decimals: 1,
+     limits: {default: {yellow: [-40, 40], red: [-60, 60], basis: "[ASSUMPTION] jet-stream drift envelope"}}}
+  GNSS_VE:
+    {description: GNSS east velocity, units: m/s, subsystem: NAV, rate_hz: 1, decimals: 1,
+     limits: {default: {yellow: [-40, 40], red: [-60, 60], basis: "[ASSUMPTION] jet-stream drift envelope"}}}
+  GNSS_VU:
+    description: GNSS vertical velocity
+    units: m/s
+    subsystem: NAV
+    rate_hz: 1
+    decimals: 2
+    limits:
+      PAD:     {yellow: [-1, 1], red: [-3, 3], basis: "[ASSUMPTION] stationary on the pad"}
+      ASCENT:  {yellow: [2, 8], red: [1, 10], basis: "[ASSUMPTION] about the modelled 4.9 m/s free-lift ascent (docs/PHYSICS.md)"}
+      FLOAT:   {yellow: [-1, 1], red: [-3, 3], basis: "yellow = config gates.float_max_vz_m_s; red [ASSUMPTION]"}
+      DESCENT: {yellow: [-80, 5], red: [-120, 10], basis: "[ASSUMPTION] parachute descent envelope"}
+  GNSS_FIX:
+    {description: "GNSS fix type (3 = 3D)", units: "", subsystem: NAV, rate_hz: 1, decimals: 0,
+     limits: {default: {yellow: [3, null], red: [2, null], basis: "[ASSUMPTION] 3D fix required"}}}
+  GNSS_SATS:
+    {description: GNSS satellites used, units: "", subsystem: NAV, rate_hz: 1, decimals: 0,
+     limits: {default: {yellow: [6, null], red: [4, null], basis: "[ASSUMPTION] simulated count; minimum for a robust 3D fix"}}}
+  NAVIC_LAT: {description: NavIC latitude, units: deg, subsystem: NAV, rate_hz: 1, decimals: 6}
+  NAVIC_LON: {description: NavIC longitude, units: deg, subsystem: NAV, rate_hz: 1, decimals: 6}
+  NAVIC_ALT: {description: NavIC altitude, units: m, subsystem: NAV, rate_hz: 1, decimals: 0}
+
+  # ---------------------------------------------------------------- ENV
+  BARO_P:
+    description: Static pressure
+    units: hPa
+    subsystem: ENV
+    rate_hz: 1
+    decimals: 2
+    limits:
+      PAD: {yellow: [980, 1030], red: [950, 1050], basis: "[ASSUMPTION] sea-level site sanity range"}
+  AIR_T:
+    description: Outside air temperature
+    units: degC
+    subsystem: ENV
+    rate_hz: 1
+    decimals: 1
+    limits:
+      PAD:     {yellow: [10, 40], red: [0, 45], basis: "[ASSUMPTION] site climate"}
+      default: {yellow: [-85, 45], red: [-95, 55], basis: "[ASSUMPTION] tropical troposphere/stratosphere envelope"}
+
+  # ---------------------------------------------------------------- ATT
+  IMU_TILT:
+    description: Gondola tilt magnitude
+    units: deg
+    subsystem: ATT
+    rate_hz: 1
+    decimals: 2
+    limits:
+      FLOAT:   {yellow: [null, 1.5], red: [null, 5], basis: "yellow = config gates.swing_max_amplitude_deg; red [ASSUMPTION]"}
+      default: {yellow: [null, 5], red: [null, 15], basis: "[ASSUMPTION]"}
+  IMU_RATE:
+    {description: Gondola tilt-rate magnitude, units: deg/s, subsystem: ATT, rate_hz: 1, decimals: 2,
+     limits: {default: {yellow: [null, 5], red: [null, 15], basis: "[ASSUMPTION]"}}}
+  IMU_TILT_E: {description: Gondola tilt about east axis, units: deg, subsystem: ATT, rate_hz: 1, decimals: 3}
+  IMU_TILT_N: {description: Gondola tilt about north axis, units: deg, subsystem: ATT, rate_hz: 1, decimals: 3}
+  IMU_RATE_E: {description: Tilt rate (east), units: deg/s, subsystem: ATT, rate_hz: 1, decimals: 3}
+  IMU_RATE_N: {description: Tilt rate (north), units: deg/s, subsystem: ATT, rate_hz: 1, decimals: 3}
+
+  # ---------------------------------------------------------------- PROP
+  TANK_P:
+    description: Pressurant tank pressure
+    units: bar
+    subsystem: PROP
+    rate_hz: 1
+    decimals: 2
+    limits:
+      PAD:     {yellow: [190, 210], red: [180, 220], basis: "fill = config tank.P0_bar (200); bands [ASSUMPTION]"}
+      default: {yellow: [165, 210], red: [150, 220], basis: "[ASSUMPTION] cold-soak pressure drop to about 176 bar at float is nominal"}
+  TANK_T:
+    {description: Pressurant tank temperature, units: degC, subsystem: PROP, rate_hz: 1, decimals: 1,
+     limits: {default: {yellow: [-40, 50], red: [-55, 60], basis: "[ASSUMPTION] COPV thermal envelope"}}}
+  MOTOR_T:
+    description: Motor case temperature
+    units: degC
+    subsystem: PROP
+    rate_hz: 1
+    decimals: 1
+    limits:
+      default: {yellow: [-5, 45], red: [-10, 50], basis: "red low = config motor.T_min_qualified_c (-10 C, itself an ASSUMPTION); others [ASSUMPTION]"}
+  MOTOR_HTR: {description: "Motor heater on (1) / off (0)", units: "", subsystem: PROP, rate_hz: 1, decimals: 0}
+
+  # ---------------------------------------------------------------- PWR
+  BATT_V:
+    {description: Avionics battery voltage, units: V, subsystem: PWR, rate_hz: 1, decimals: 2,
+     limits: {default: {yellow: [11.1, 12.8], red: [10.5, 13.0], basis: "[ASSUMPTION] 3S Li-ion pack; simulated linear discharge"}}}
+
+  # ---------------------------------------------------------------- COMM
+  RSSI:
+    {description: Downlink received signal strength (simulated RF model on Laptop A), units: dBm, subsystem: COMM, rate_hz: 1, decimals: 1,
+     limits: {default: {yellow: [-100, null], red: [-110, null], basis: "red = assumed receiver sensitivity (-110 dBm); yellow = 10 dB margin [ASSUMPTION]"}}}
+
+  # ---------------------------------------------------------------- VEHICLE
+  VENT_STATE:
+    description: "Balloon vent duct flowing (1) / closed (0), onboard 3-sigma threshold"
+    units: ""
+    subsystem: VEHICLE
+    rate_hz: 1
+    decimals: 0
+    limits:
+      PAD:    {yellow: [null, 0.5], red: [null, 0.5], basis: "venting on the pad is abnormal [ASSUMPTION]"}
+      ASCENT: {yellow: [null, 0.5], red: [null, null], basis: "venting before float is unexpected [ASSUMPTION]"}
+  VENT_RATE:    {description: Balloon vent mass flow, units: g/s, subsystem: VEHICLE, rate_hz: 1, decimals: 2}
+  BLN_VOL:      {description: Balloon volume (shape estimate), units: m3, subsystem: VEHICLE, rate_hz: 1, decimals: 0}
+  BALLAST_RATE: {description: Ballast release rate, units: g/s, subsystem: VEHICLE, rate_hz: 1, decimals: 2}
+  FC_PHASE:     {description: Flight computer phase, units: "", subsystem: VEHICLE, rate_hz: 1}
+  FC_RKT_PHASE: {description: Rocket phase reported by the flight computer, units: "", subsystem: VEHICLE, rate_hz: 1}
+  FC_EVENT:     {description: Flight computer events this step, units: "", subsystem: VEHICLE, rate_hz: 1}
+  RKT_ALT:      {description: Rocket altitude (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0}
+  RKT_DR:       {description: Rocket downrange (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0}
+  RKT_SPD:      {description: Rocket speed (illustrative model, not validated), units: m/s, subsystem: VEHICLE, rate_hz: 1, decimals: 0}

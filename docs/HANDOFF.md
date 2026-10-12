@@ -32,6 +32,25 @@ Kept: all physics, the simulator (moves to the Laptop A role in step 2), estimat
 predictor, recorder/HMAC/recovery and their tests; Flight panels (telemetry, gates,
 alerts, map) and Post-flight, attaching to missions that already exist.
 
+## Step 2: telemetry link (done)
+
+- `docs/ICD.md` (ICD v1: UDP JSON frames, HMAC chain with the demo key, recovery
+  `/manifest` + `/recover`, grading-only `/truth` on Laptop A port 8100).
+- `config/channels.yaml`: dictionary with per-phase yellow/red limits (each with a basis)
+  and a per-phase settle time after phase changes.
+- `aerofire/telemetry/icd.py`: frames, chain, channel <-> sensor-packet conversion, limits.
+- `sender/` (Laptop A): `python -m sender --target <ip> --scenario ... --speed N`; vehicle
+  actions (commit/terminate) are Laptop A-side only (automatic per scenario, flags, console).
+- `aerofire/receiver/` (Laptop B): verification, gaps/duplicates/reorder, rate/loss/latency,
+  AOS/LOS (3 s), session recording, limit alarms + ack, GO/NO-GO poll, feeds GroundStation.
+- API: `WS /ws/telemetry`, `/api/ground/*` (docs/API.md). `backend.py` listens on UDP 5600
+  by default; `--playback FILE [--playback-speed]`, `--snapshot`, `--no-udp`.
+- Demo sessions (snapshot atmosphere, speed 20, seed 11) in `data/demo_sessions/`:
+  `nominal` (GO, vehicle commit at MET 5955, landed 9169 s) and `tank_leak_100um`
+  (ABORT, terminate at MET 900, landed 1483 s). `*.vehicle.jsonl.gz` + `*.truth.json`
+  are the Laptop A side (for `sender --replay` recovery/grading).
+- Verified: one-machine two-process UDP run at speed 100 (about 98 frames/s, 0.83 % loss).
+
 ## Run
 
 ```bash
@@ -39,12 +58,14 @@ alerts, map) and Post-flight, attaching to missions that already exist.
 cd frontend && npm run dev                         # localhost:5173
 .venv/Scripts/python -m pytest -q | tail -5
 cd frontend && npx tsc -b --noEmit && npx vitest run
+.venv/Scripts/python -m sender --target 127.0.0.1 --scenario nominal --speed 20   # Laptop A
+.venv/Scripts/python backend.py --playback data/demo_sessions/nominal.jsonl.gz --playback-speed 10
 ```
 
 ## Status
 
-- Step 1: done. pytest 161 passed; vitest 5 passed; tsc and `npm run build` pass.
-  The Flight window now attaches to an existing mission (mission picker) instead of
-  starting scenarios; Post-flight browser spec kept (it creates missions via the API).
-- Next exact step: Step 2.1 write `docs/ICD.md` (ICD v1), then `config/channels.yaml`,
-  `sender/` (Laptop A), `aerofire/receiver/` (Laptop B), playback, tests.
+- Step 1: done (`8c1a303`). Step 2: done. pytest 173 passed.
+- Next exact step: Step 3, the console UI shell (top status bar, left nav, alarm line,
+  keys 1-6/A) over `WS /ws/telemetry`, and the FLIGHT page (telemetry table, uPlot strip
+  charts, fused state, gates + GO/NO-GO poll, link panel). Add `uplot`; replace the old
+  Flight view; Playwright smoke per page using `backend.py --playback`.

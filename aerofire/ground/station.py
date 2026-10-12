@@ -110,7 +110,8 @@ class GroundStation:
         if rx:
             self.last_rx_wall = rx["arrival_time"] if self.last_rx_wall is None else max(self.last_rx_wall, rx["arrival_time"])
             self.latencies.append(rx["arrival_time"] - rec["event_time"])
-            self.rssi.append(rx["rssi_dbm"])
+            if rx.get("rssi_dbm") is not None:
+                self.rssi.append(rx["rssi_dbm"])
 
     def _drain(self, now: float) -> None:
         while self._inbox and self._inbox[0][0] <= now - self.reorder_delay_s:

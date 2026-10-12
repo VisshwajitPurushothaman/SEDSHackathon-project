@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from ..config import load_config
 from ..physics import atmosphere as A
 from . import legacy
+from .ground import router as ground_router, start_receiver
 from .missions import router as missions_router
 
 CFG = load_config()
@@ -34,6 +35,12 @@ def current_profile() -> A.AtmosphereProfile:
 
 
 app.include_router(missions_router)
+app.include_router(ground_router)
+
+
+@app.on_event("startup")
+async def _start_receiver() -> None:
+    start_receiver()
 
 
 @app.get("/api/health")

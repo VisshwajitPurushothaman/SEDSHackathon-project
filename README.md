@@ -1,10 +1,13 @@
 # AERO-FIRE
 
-A simulated rockoon mission and ground station with Pre-flight, Flight and
-Post-flight windows. Python/FastAPI serves the physics, sensors, recorder,
-telemetry link, ground estimates and recovery. React/TypeScript, Three.js and
-MapLibre display the existing mission-control console. No real ignition,
-release or deployment hardware is connected.
+A two-laptop telemetry ground station for a simulated rockoon (balloon-launched
+rocket). **Laptop A** runs the vehicle digital twin (truth simulator, sensors,
+onboard recorder) and sends ICD v1 telemetry frames over UDP
+([docs/ICD.md](docs/ICD.md)). **Laptop B** runs this ground station: receiver,
+limit checks against the [channel dictionary](config/channels.yaml), Kalman
+estimator, predictions and the console. Laptop B never sees truth during a
+mission and has no uplink. No real ignition, release or deployment hardware is
+connected.
 
 ## Install once
 
@@ -46,6 +49,39 @@ The existing separate-terminal commands remain available:
 `npm --prefix frontend run dev`. `AEROFIRE_HOST`/`AEROFIRE_PORT` configure the
 backend; `VITE_API_URL` configures the frontend. Its default is
 `http://127.0.0.1:8000`.
+
+## Two-laptop setup
+
+1. Put both laptops on the same Wi-Fi (a phone hotspot works). On Laptop B run
+   `ipconfig` and note the Wi-Fi adapter's IPv4 address (e.g. `192.168.43.20`);
+   do the same on Laptop A for recovery.
+2. Allow the traffic in Windows Firewall (PowerShell **as Administrator**; the
+   Wi-Fi network profile must be Private, or use `-Profile Any`):
+
+   ```powershell
+   # Laptop B (ground station): telemetry in
+   New-NetFirewallRule -DisplayName "AERO-FIRE telemetry UDP 5600" -Direction Inbound -Protocol UDP -LocalPort 5600 -Action Allow -Profile Private
+   # Laptop A (vehicle): post-flight recovery requests in
+   New-NetFirewallRule -DisplayName "AERO-FIRE recovery TCP 8100" -Direction Inbound -Protocol TCP -LocalPort 8100 -Action Allow -Profile Private
+   ```
+3. Laptop B: `.venv/Scripts/python backend.py` (listens on UDP 0.0.0.0:5600;
+   API/UI on 127.0.0.1:8000) and `npm --prefix frontend run dev`.
+4. Laptop A: `.venv/Scripts/python -m sender --target <B-ip> --scenario nominal --speed 20`.
+   Scenarios: `nominal`, `tank_leak_100um`, `gnss_spoof`, `blackout_600s`,
+   `cold_motor`. The vehicle commit/terminate happens on Laptop A (automatic per
+   scenario, `--commit-at`/`--terminate-at`, or type `commit`/`terminate`).
+   `--replay data/demo_sessions/nominal.vehicle.jsonl.gz` resends a recorded flight.
+
+**One laptop:** run both on the same machine with `--target 127.0.0.1`.
+
+**No sender at all (PLAYBACK):**
+`.venv/Scripts/python backend.py --playback data/demo_sessions/nominal.jsonl.gz --playback-speed 10`
+replays a recorded ground session (also `tank_leak_100um.jsonl.gz`); the console
+shows PLAYBACK. Re-record with `python tools/record_demo_session.py <scenario>`.
+
+Ground-station API: `ws://127.0.0.1:8000/ws/telemetry`, `/api/ground/*`
+(see [docs/API.md](docs/API.md)). Received frames are written to
+`data/sessions/<mission_id>.jsonl`.
 
 ## Demo flow
 
