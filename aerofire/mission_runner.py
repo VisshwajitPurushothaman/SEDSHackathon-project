@@ -359,11 +359,19 @@ class MissionRun:
     def _records(self) -> list[dict[str, Any]]:
         return [self.held[s] for s in sorted(self.held)]
 
+    def _analysis(self, records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """Reconstruction and leak reprocessing, cached until the held record set changes."""
+        key = len(self.held)
+        cache = getattr(self, "_analysis_cache", None)
+        if cache is None or cache[0] != key:
+            cache = (key, PF.reconstruct(self.cfg, self.profile, records, step_s=5.0), PF.leak_reprocess(self.cfg, records))
+            self._analysis_cache = cache
+        return cache[1], cache[2]
+
     def postflight(self, with_track: bool = True) -> dict[str, Any]:
         with self.lock:
             records = self._records()
-            recon = PF.reconstruct(self.cfg, self.profile, records, step_s=5.0)
-            leak = PF.leak_reprocess(self.cfg, records)
+            recon, leak = self._analysis(records)
             rec = self.recovery_status() if self.recovery else None
             ctx = {"recon": recon, "leak": leak, "live": self.leak_live, "recovery": rec,
                    "prediction_log": self.ground.prediction_log, "footprint_at_cutdown": self.footprint_at_cutdown,
@@ -382,6 +390,7 @@ class MissionRun:
                 "landing_fix": self.landing_fix,
                 "closure": {k: {"title": CLOSURE_ITEMS[k], "done": v} for k, v in self.closure.items()},
                 "event_log": self.event_log,
+                "grading": bool(self.cfg.api.truth_enabled),
                 "data_note": "computed from records held by the ground (live + recovered); run recovery for a complete picture",
             }
             if self.cfg.api.truth_enabled:
@@ -398,8 +407,11 @@ class MissionRun:
         return None
 
     def _fault_timeline(self, leak: dict[str, Any], records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        f = self.faults_dict
+        """Faults: injected (test configuration = truth, grading mode only) and detected (always)."""
         alerts = {a.key.split("@")[0]: a for a in self.ground.alerts}
+        if not self.cfg.api.truth_enabled:
+            return self._detected_only(alerts, leak, records)
+        f = self.faults_dict
         out = []
 
         def entry(fid: str, kind: str, injected: dict[str, Any] | None, detected_key: str | None, extra: dict[str, Any]) -> None:
@@ -428,6 +440,22 @@ class MissionRun:
             if a.severity == "WARNING" and key not in injected_keys and key not in ("abort", "impact_outside"):
                 out.append({"id": key, "kind": "detected, not injected", "injected": None, "detected_at": a.t,
                             "detected_by": a.title, "detection_delay_s": None, "corrective_action": self.corrective_actions.get(key)})
+        return out
+
+    def _detected_only(self, alerts: dict[str, Any], leak: dict[str, Any], records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out = []
+        kinds = {"tank_leak": "Pressurant leak", "nav_integrity": "Navigation integrity failure", "motor_cold": "Motor below qualified temperature",
+                 "blackout": "Telemetry blackout", "excluded_gnss": "GNSS excluded", "excluded_navic": "NavIC excluded", "impact_outside": "Impact outside area"}
+        for key, a in alerts.items():
+            if key not in kinds:
+                continue
+            extra: dict[str, Any] = {}
+            if key == "tank_leak":
+                extra = {"estimated_diameter_um": self.leak_live.get("d_est_um"), "hindsight_onset_t": leak.get("onset_estimate_t")}
+            elif key == "nav_integrity":
+                extra = {"hindsight_onset_t": PF.spoof_onset(records)}
+            out.append({"id": key, "kind": kinds[key], "injected": None, "detected_at": a.t, "detected_by": a.title,
+                        "detection_delay_s": None, "corrective_action": self.corrective_actions.get(key)} | extra)
         return out
 
     def set_corrective_action(self, fault_id: str, operator: str, text: str) -> dict[str, Any]:

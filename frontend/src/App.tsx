@@ -12,6 +12,7 @@ import { useHealthPoll, useKeyboardShortcuts, usePlaybackLoop } from './hooks/us
 // three.js is the heaviest dependency; load it after the 2D console has painted.
 const SceneRoot = lazy(() => import('./scene/SceneRoot'));
 const FlightView = lazy(() => import('./flight/FlightView'));
+const PostflightView = lazy(() => import('./postflight/PostflightView'));
 
 const viewFromHash = (): View => (location.hash.startsWith('#/flight') ? 'flight' : location.hash.startsWith('#/postflight') ? 'postflight' : 'preflight');
 
@@ -61,9 +62,7 @@ export default function App() {
       <MotionConfig reducedMotion="user">
         <div className="flex min-h-full flex-col lg:h-full">
           <TopBar view={view} />
-          <Suspense fallback={<SceneFallback />}>
-            <FlightView />
-          </Suspense>
+          <Suspense fallback={<SceneFallback />}>{view === 'flight' ? <FlightView /> : <PostflightView />}</Suspense>
         </div>
       </MotionConfig>
     );
