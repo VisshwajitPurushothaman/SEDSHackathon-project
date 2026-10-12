@@ -18,14 +18,16 @@ export default {
         fail: ui.fail,
         info: ui.info,
         armed: ui.armed,
+        stale: ui.stale,
+        pred: ui.info,
       },
       fontFamily: {
-        display: ['"Space Grotesk"', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['Inter', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       borderRadius: {
-        panel: '12px',
+        panel: '4px',
       },
       backdropBlur: {
         panel: '8px',

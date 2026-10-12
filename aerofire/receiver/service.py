@@ -90,16 +90,18 @@ class Receiver:
             transport.close()
 
     async def run_playback(self, path: str, speed: float = 1.0) -> None:
-        """Replay a recorded session file with its original receive timing (divided by `speed`)."""
+        """Replay a recorded session on a virtual clock in the recording's own time base (receive times,
+        ages, latency and LOS are as recorded), advanced `speed` times faster than real time."""
         self.mode, self.playback_file = "PLAYBACK", path
         rows = load_session(path)
+        first, t0 = rows[0]["rx"]["utc"], time.time()
+        self.clock = lambda: first + (time.time() - t0) * speed
         ticker = asyncio.create_task(self._ticker())
-        t0, first = self.clock(), rows[0]["rx"]["utc"]
         for row in rows:
-            delay = (row["rx"]["utc"] - first) / speed - (self.clock() - t0)
+            delay = (row["rx"]["utc"] - self.clock()) / speed
             if delay > 0:
                 await asyncio.sleep(delay)
-            self.on_frame(row, self.clock())
+            self.on_frame(row, row["rx"]["utc"])
         self.playback_done = True
         await ticker
 

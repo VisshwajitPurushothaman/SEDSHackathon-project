@@ -129,20 +129,18 @@ npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
 
-Use `.venv/bin/python` on Linux. Browser checks use the installed Chrome by
-default. Start an isolated deterministic test instance in one terminal:
+Use `.venv/bin/python` on Linux. Browser smoke tests use the installed Chrome and
+a recorded session in PLAYBACK. Start an isolated instance in one terminal:
 
 ```bash
-python tools/dev.py --snapshot --api-port 8001 --web-port 5174
+python tools/dev.py --snapshot --api-port 8001 --web-port 5174 --playback data/demo_sessions/nominal.jsonl.gz --playback-speed 10
 ```
 
-Then run `npm --prefix frontend run test:browser` in another terminal. For an
-installed Playwright Chromium, use `TEST_BROWSER_CHANNEL=chromium`; for other
-ports set `TEST_API_URL` and `TEST_BASE_URL`. Tests use the Vite development
-module graph for renderer/store inspection, so this command targets the dev
-server. It creates simulated missions and downloads reports into ignored
-`frontend/test-results/`; failures retain screenshots and traces. Never point
-these tests at a real system.
+Then run `npm --prefix frontend run test:browser` in another terminal (restart
+the instance before each run: the playback is consumed once). For an installed
+Playwright Chromium, use `TEST_BROWSER_CHANNEL=chromium`; for other ports set
+`TEST_API_URL` and `TEST_BASE_URL`. Failures keep screenshots and traces in the
+ignored `frontend/test-results/`.
 
 ## Engineering documents
 

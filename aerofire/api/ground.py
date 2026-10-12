@@ -101,10 +101,15 @@ def state() -> dict[str, Any]:
 
 
 @router.get("/api/ground/history")
-def history(max_points: int = Query(3000, ge=10, le=20000)) -> dict[str, Any]:
+def history(max_points: int = Query(3000, ge=10, le=20000), since: float | None = None) -> dict[str, Any]:
+    """Per-step rows and fused track. `since` (MET) returns only newer rows, undecimated up to max_points."""
     with RECEIVER.lock:
         s = _session()
         h, tr = s.history, s.track
+        if since is not None:
+            h = [r for r in h[-max_points * 4:] if r["met"] > since][-max_points:]
+            tr = [r for r in tr[-max_points * 4:] if r["met"] > since][-max_points:]
+            return {"mission_id": s.mission_id, "rows": h, "track": tr, "los_periods": s.los_periods}
         step = max(1, len(h) // max_points)
         tstep = max(1, len(tr) // max_points)
         return {"mission_id": s.mission_id, "rows": h[::step] + (h[-1:] if h and (len(h) - 1) % step else []),

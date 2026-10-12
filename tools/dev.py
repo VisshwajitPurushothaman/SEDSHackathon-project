@@ -17,6 +17,8 @@ def main():
     parser.add_argument("--api-port", type=int, default=8000)
     parser.add_argument("--web-port", type=int, default=5173)
     parser.add_argument("--snapshot", action="store_true", help="use the recorded atmosphere for deterministic demos/tests")
+    parser.add_argument("--playback", default=None, help="replay a recorded ground session instead of listening for UDP telemetry")
+    parser.add_argument("--playback-speed", type=float, default=1.0)
     args = parser.parse_args()
     for port in (args.api_port, args.web_port):
         with socket.socket() as sock:
@@ -29,7 +31,9 @@ def main():
     env = os.environ.copy()
     env["AEROFIRE_PORT"] = str(args.api_port)
     env["VITE_API_URL"] = f"http://127.0.0.1:{args.api_port}"
-    backend = [str(python), "tools/browser_backend.py", "--port", str(args.api_port)] if args.snapshot else [str(python), "backend.py"]
+    backend = [str(python), "backend.py", "--port", str(args.api_port)] + (["--snapshot"] if args.snapshot else [])
+    if args.playback:
+        backend += ["--playback", args.playback, "--playback-speed", str(args.playback_speed)]
     frontend = [npm, "run", "dev", "--", "--port", str(args.web_port), "--strictPort"]
     if os.name == "nt":
         frontend = ["cmd.exe", "/c", *frontend]

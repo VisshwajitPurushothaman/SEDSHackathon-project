@@ -1,43 +1,27 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-
-const FlightView = lazy(() => import('./flight/FlightView'));
-const PostflightView = lazy(() => import('./postflight/PostflightView'));
-
-type View = 'flight' | 'postflight';
-const viewFromHash = (): View => (location.hash.startsWith('#/postflight') ? 'postflight' : 'flight');
-
-function useView(): View {
-  const [view, setView] = useState<View>(viewFromHash);
-  useEffect(() => {
-    const on = () => setView(viewFromHash());
-    window.addEventListener('hashchange', on);
-    return () => window.removeEventListener('hashchange', on);
-  }, []);
-  return view;
-}
-
-const TABS: { id: View; label: string; href: string }[] = [
-  { id: 'flight', label: 'Flight', href: '#/flight' },
-  { id: 'postflight', label: 'Post-flight', href: '#/postflight' },
-];
+import FlightPage from './ground/FlightPage';
+import { EventsPage, OverviewPage, Planned } from './ground/OtherPages';
+import { Shell, usePage } from './ground/Shell';
 
 export default function App() {
-  const view = useView();
+  const page = usePage();
   return (
-    <div className="flex min-h-full flex-col lg:h-full">
-      <header className="flex items-center gap-4 border-b border-line px-4 py-2">
-        <span className="font-display text-sm font-semibold tracking-wide text-ink">AERO-FIRE Ground Station</span>
-        <nav className="seg" aria-label="Windows">
-          {TABS.map((t) => (
-            <a key={t.id} href={t.href} aria-current={view === t.id ? 'page' : undefined} aria-pressed={view === t.id}>
-              {t.label}
-            </a>
-          ))}
-        </nav>
-      </header>
-      <Suspense fallback={<div className="grid flex-1 place-items-center text-xs text-faint">Loading…</div>}>
-        {view === 'flight' ? <FlightView /> : <PostflightView />}
-      </Suspense>
-    </div>
+    <Shell page={page}>
+      {page === 'flight' && <FlightPage />}
+      {page === 'overview' && <OverviewPage />}
+      {page === 'events' && <EventsPage />}
+      {page === 'preflight' && (
+        <Planned
+          title="Pre-flight"
+          step="Step 4"
+          items={['channel health on pad telemetry', 'sensor agreement on the pad', 'predicted telemetry profile with tolerance bands', 'range and airspace safety', 'readiness summary and hashed report']}
+        />
+      )}
+      {page === 'trajectory' && (
+        <Planned title="Trajectory" step="Step 5" items={['physics ensemble forecast and landing footprint', 'ML correction (evaluated, with fallback)', 'map with measured/reconstructed/forecast tracks and range zones']} />
+      )}
+      {page === 'postflight' && (
+        <Planned title="Post-flight" step="Step 6" items={['recovery of LOS frames from Laptop A', 'live / reconstructed / truth histories', 'limit-violation, prediction and requirement reports', 'exports and closure checklist']} />
+      )}
+    </Shell>
   );
 }

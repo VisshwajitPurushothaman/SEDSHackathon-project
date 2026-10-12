@@ -51,6 +51,22 @@ alerts, map) and Post-flight, attaching to missions that already exist.
   are the Laptop A side (for `sender --replay` recovery/grading).
 - Verified: one-machine two-process UDP run at speed 100 (about 98 frames/s, 0.83 % loss).
 
+## Step 3: console shell and FLIGHT page (done)
+
+- Theme: tokens remapped to the console palette (bg #05080F, panels #0B1220, lines #1A2436,
+  nominal/caution/alarm/predicted/stale colours); JetBrains Mono values, Inter labels.
+- `frontend/src/ground/`: store (WS 4 Hz + incremental `/api/ground/history?since=`), shell
+  (status bar with mission/MET/UTC/phase/AOS-LOS/rate/loss/latency/source/REC/alarms, left nav,
+  alarm line with operator name; keys 1-6, A), FLIGHT (telemetry table sortable/filterable with
+  limit tint and STALE ages, uPlot strip charts with yellow/red lines and LOS shading, fused state +
+  trust ladder + chi-square, gates + recorded GO/NO-GO poll, link panel), OVERVIEW, EVENTS.
+  PRE-FLIGHT/TRAJECTORY/POST-FLIGHT show "not implemented yet (Step 4/5/6)".
+- Backend: playback runs on a virtual clock in the recording's time base; `websockets` added
+  to requirements (uvicorn needs it for `/ws/telemetry`).
+- Old Flight view removed; `src/flight/{api,store,ui}.ts(x)` and `src/postflight/*` remain
+  unrouted for reuse in Step 6. `postflight.spec.mjs` removed (old missions API UI);
+  `console.spec.mjs` added (7 checks).
+
 ## Run
 
 ```bash
@@ -64,8 +80,10 @@ cd frontend && npx tsc -b --noEmit && npx vitest run
 
 ## Status
 
-- Step 1: done (`8c1a303`). Step 2: done. pytest 173 passed.
-- Next exact step: Step 3, the console UI shell (top status bar, left nav, alarm line,
-  keys 1-6/A) over `WS /ws/telemetry`, and the FLIGHT page (telemetry table, uPlot strip
-  charts, fused state, gates + GO/NO-GO poll, link panel). Add `uplot`; replace the old
-  Flight view; Playwright smoke per page using `backend.py --playback`.
+- Step 1 `8c1a303`, Step 2 `002e8b4`, Step 3 done. pytest 173 passed; vitest 5; tsc + build pass;
+  Playwright console.spec 7 passed (playback of data/demo_sessions/nominal.jsonl.gz).
+- Next exact step: Step 4 PRE-FLIGHT page: backend `aerofire/receiver/preflight.py` (channel
+  health over pad telemetry, pad sensor agreement via the existing chi-square, predicted
+  telemetry profile + tolerance bands from ground physics with the forecast atmosphere,
+  `config/range.geojson` zones + footprint/IIP intersection, readiness + hashed report),
+  `/api/ground/preflight*` endpoints, band overlay + OFF-NOMINAL caution in flight.

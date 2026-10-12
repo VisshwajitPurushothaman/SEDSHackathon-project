@@ -12,14 +12,9 @@
     @apply bg-bg font-sans text-ink antialiased;
     font-feature-settings: 'cv11', 'ss01';
   }
-  h1,
-  h2,
-  h3 {
-    @apply font-display;
-  }
   /* Visible focus on every control, keyboard only. */
   :focus-visible {
-    @apply outline-none ring-2 ring-info ring-offset-2 ring-offset-bg;
+    @apply outline-none ring-2 ring-info ring-offset-1 ring-offset-bg;
   }
   ::selection {
     @apply bg-info/30;
@@ -28,93 +23,77 @@
 
 @layer components {
   .panel {
-    @apply rounded-panel border border-line bg-panel/90 backdrop-blur-panel;
+    @apply rounded-panel border border-line bg-panel;
   }
   .panel-title {
-    @apply font-display text-[13px] font-semibold uppercase tracking-[0.14em] text-muted;
+    @apply font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-muted;
+  }
+  .panel-head {
+    @apply flex items-center gap-2 border-b border-line px-3 py-2;
   }
   .num {
     @apply font-mono tabular-nums;
-    font-variant-numeric: tabular-nums;
+  }
+  .mn {
+    /* mnemonic */
+    @apply font-mono text-[12px] uppercase tracking-wide;
   }
   .unit {
     @apply font-sans text-muted;
   }
+  .lbl {
+    @apply text-[10.5px] font-medium uppercase tracking-[0.12em] text-muted;
+  }
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm font-medium text-ink transition-colors duration-200 ease-out hover:border-faint hover:bg-line disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex items-center justify-center gap-1.5 rounded border border-line bg-panel2 px-3 py-1.5 text-[12.5px] font-medium text-ink hover:border-muted disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-primary {
-    @apply border-info/60 bg-info/15 text-ink hover:border-info hover:bg-info/25;
+    @apply border-info/60 bg-info/10 hover:border-info;
   }
   .seg {
-    @apply inline-flex rounded-lg border border-line bg-panel2 p-0.5;
+    @apply inline-flex rounded border border-line bg-panel2 p-0.5;
   }
-  .seg > button {
-    @apply rounded-md px-2.5 py-1 text-xs font-medium text-muted transition-colors duration-150 ease-out hover:text-ink disabled:cursor-not-allowed disabled:opacity-40;
+  .seg > button,
+  .seg > a {
+    @apply rounded-sm px-2.5 py-1 text-xs font-medium text-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-40;
   }
   .seg > button[aria-pressed='true'],
+  .seg > a[aria-pressed='true'],
   .seg > button[aria-checked='true'] {
     @apply bg-line text-ink;
   }
-
-  /* Labels rendered by drei <Html> inside the 3D scene. */
-  .scene-label {
-    @apply pointer-events-none select-none whitespace-nowrap rounded px-1 font-mono text-[11px] tabular-nums;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  .field {
+    @apply rounded border border-line bg-panel2 px-2 py-1 text-[12.5px] text-ink placeholder:text-muted/70;
   }
-  .scene-label--muted {
-    @apply text-muted;
+  .tag {
+    @apply inline-flex items-center gap-1 rounded-sm border px-1.5 py-px font-mono text-[10.5px] font-semibold uppercase leading-4 tracking-wide;
   }
-
-  .mass-readout {
-    @apply pointer-events-none flex select-none flex-col whitespace-nowrap rounded-md border border-line bg-panel/90 px-2 py-1 leading-tight transition-colors duration-200;
+  .tag-nom {
+    @apply border-pass/50 bg-pass/10 text-pass;
   }
-  .mass-readout__label {
-    @apply text-[10px] uppercase tracking-wider text-muted;
+  .tag-cau {
+    @apply border-hold/60 bg-hold/15 text-hold;
   }
-  .mass-readout__value {
-    @apply font-mono text-[13px] tabular-nums text-ink;
+  .tag-alm {
+    @apply border-fail/70 bg-fail/15 text-fail;
   }
-  .mass-readout__unit {
-    @apply text-[11px] text-muted;
+  .tag-pred {
+    @apply border-pred/60 bg-pred/10 text-pred;
   }
-  .mass-readout[data-tone='hold'] {
-    @apply border-hold/70;
+  .tag-stale {
+    @apply border-stale/50 bg-stale/10 text-stale;
   }
-  .mass-readout[data-tone='hold'] .mass-readout__value {
-    @apply text-hold;
+  .tag-fused {
+    @apply border-ink/40 bg-ink/5 text-ink;
   }
-  .mass-readout[data-tone='fail'] {
-    @apply border-fail/80;
+  .tbl {
+    @apply w-full border-collapse text-[12.5px];
   }
-  .mass-readout[data-tone='fail'] .mass-readout__value {
-    @apply text-fail;
+  .tbl th {
+    @apply sticky top-0 z-10 border-b border-line bg-panel px-2 py-1.5 text-left text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted;
   }
-
-  /* Mission scrubber (native range input, restyled). */
-  .scrubber {
-    @apply h-6 w-full cursor-pointer appearance-none bg-transparent;
-  }
-  .scrubber::-webkit-slider-runnable-track {
-    @apply h-1.5 rounded-full bg-line;
-  }
-  .scrubber::-moz-range-track {
-    @apply h-1.5 rounded-full bg-line;
-  }
-  .scrubber::-webkit-slider-thumb {
-    @apply -mt-[5px] h-4 w-4 appearance-none rounded-full border-2 border-bg bg-ink shadow;
-  }
-  .scrubber::-moz-range-thumb {
-    @apply h-3.5 w-3.5 rounded-full border-2 border-bg bg-ink;
-  }
-  .scrubber::-webkit-slider-runnable-track {
-    background: linear-gradient(to right, theme('colors.info') var(--p, 0%), theme('colors.line') var(--p, 0%));
-  }
-  .scrubber::-moz-range-progress {
-    @apply h-1.5 rounded-full bg-info;
-  }
-  .scrubber:disabled {
-    @apply cursor-not-allowed opacity-40;
+  .tbl td {
+    @apply whitespace-nowrap border-b border-line/60 px-2 py-[3px] align-middle;
   }
 }
 
@@ -128,9 +107,21 @@
   }
 }
 
+/* uPlot in the console's palette. */
+.uplot,
+.uplot * {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.u-legend {
+  @apply text-[11px] text-muted;
+}
+.u-legend .u-marker {
+  @apply rounded-sm;
+}
+
 /* MapLibre popup in the console's dark style. */
 .aerofire-popup .maplibregl-popup-content {
-  @apply rounded-md border border-line bg-panel px-2 py-1 font-sans text-[11px] text-ink shadow-lg;
+  @apply rounded border border-line bg-panel px-2 py-1 font-sans text-[11px] text-ink shadow-lg;
 }
 .aerofire-popup .maplibregl-popup-tip {
   display: none;
