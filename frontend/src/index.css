@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+  /* Visible focus on every control, keyboard only. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-info ring-offset-2 ring-offset-bg;
+  }
+  ::selection {
+    @apply bg-info/30;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-panel border border-line bg-panel/90 backdrop-blur-panel;
+  }
+  .panel-title {
+    @apply font-display text-[13px] font-semibold uppercase tracking-[0.14em] text-muted;
+  }
+  .num {
+    @apply font-mono tabular-nums;
+    font-variant-numeric: tabular-nums;
+  }
+  .unit {
+    @apply font-sans text-muted;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm font-medium text-ink transition-colors duration-200 ease-out hover:border-faint hover:bg-line disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply border-info/60 bg-info/15 text-ink hover:border-info hover:bg-info/25;
+  }
+  .seg {
+    @apply inline-flex rounded-lg border border-line bg-panel2 p-0.5;
+  }
+  .seg > button {
+    @apply rounded-md px-2.5 py-1 text-xs font-medium text-muted transition-colors duration-150 ease-out hover:text-ink disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .seg > button[aria-pressed='true'],
+  .seg > button[aria-checked='true'] {
+    @apply bg-line text-ink;
+  }
+
+  /* Labels rendered by drei <Html> inside the 3D scene. */
+  .scene-label {
+    @apply pointer-events-none select-none whitespace-nowrap rounded px-1 font-mono text-[11px] tabular-nums;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  }
+  .scene-label--muted {
+    @apply text-muted;
+  }
+
+  .mass-readout {
+    @apply pointer-events-none flex select-none flex-col whitespace-nowrap rounded-md border border-line bg-panel/90 px-2 py-1 leading-tight transition-colors duration-200;
+  }
+  .mass-readout__label {
+    @apply text-[10px] uppercase tracking-wider text-muted;
+  }
+  .mass-readout__value {
+    @apply font-mono text-[13px] tabular-nums text-ink;
+  }
+  .mass-readout__unit {
+    @apply text-[11px] text-muted;
+  }
+  .mass-readout[data-tone='hold'] {
+    @apply border-hold/70;
+  }
+  .mass-readout[data-tone='hold'] .mass-readout__value {
+    @apply text-hold;
+  }
+  .mass-readout[data-tone='fail'] {
+    @apply border-fail/80;
+  }
+  .mass-readout[data-tone='fail'] .mass-readout__value {
+    @apply text-fail;
+  }
+
+  /* Mission scrubber (native range input, restyled). */
+  .scrubber {
+    @apply h-6 w-full cursor-pointer appearance-none bg-transparent;
+  }
+  .scrubber::-webkit-slider-runnable-track {
+    @apply h-1.5 rounded-full bg-line;
+  }
+  .scrubber::-moz-range-track {
+    @apply h-1.5 rounded-full bg-line;
+  }
+  .scrubber::-webkit-slider-thumb {
+    @apply -mt-[5px] h-4 w-4 appearance-none rounded-full border-2 border-bg bg-ink shadow;
+  }
+  .scrubber::-moz-range-thumb {
+    @apply h-3.5 w-3.5 rounded-full border-2 border-bg bg-ink;
+  }
+  .scrubber::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, theme('colors.info') var(--p, 0%), theme('colors.line') var(--p, 0%));
+  }
+  .scrubber::-moz-range-progress {
+    @apply h-1.5 rounded-full bg-info;
+  }
+  .scrubber:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
