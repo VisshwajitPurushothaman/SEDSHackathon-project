@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import type { TelemetryFrame } from '../api/types';
 import { useThrottledPlayhead } from '../hooks/useMissionRuntime';
-import { LEAK_FLAG_MASS_G, RELEASE_ALTITUDE_M, START_TANK_PRES_BAR } from '../lib/checks';
+import { MASS_CAUTION_G, RELEASE_ALTITUDE_M, START_TANK_PRES_BAR } from '../lib/checks';
 import { endTimeOf, interpolateFrame } from '../lib/playback';
 import { useMission } from '../store/useMission';
 import { ui } from '../theme/tokens';
@@ -90,7 +90,7 @@ export function TankChart() {
           <XAxis type="number" dataKey="t" domain={[0, end]} {...axis} tickCount={5} allowDecimals={false} />
           <YAxis yAxisId="bar" type="number" domain={[minBar, START_TANK_PRES_BAR]} {...axis} allowDecimals={false} />
           <YAxis yAxisId="g" orientation="right" type="number" domain={[0, maxG]} {...axis} allowDecimals={false} />
-          <ReferenceLine yAxisId="g" y={LEAK_FLAG_MASS_G} stroke={ui.fail} strokeDasharray="4 3" strokeOpacity={0.7} />
+          <ReferenceLine yAxisId="g" y={MASS_CAUTION_G} stroke={ui.hold} strokeDasharray="4 3" strokeOpacity={0.6} />
           <Line yAxisId="bar" dataKey="bar" stroke={ui.info} strokeWidth={1.6} dot={false} isAnimationActive={false} />
           <Line yAxisId="g" dataKey="g" stroke={ui.hold} strokeWidth={1.6} dot={false} isAnimationActive={false} />
         </ComposedChart>

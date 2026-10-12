@@ -45,12 +45,12 @@ export function AltitudeRail() {
         <Highlight id="altitude" thickness={0.01} />
       </mesh>
 
-      {/* Release band (25–30 km) */}
+      {/* Release band (26–30 km, config gates.release_band_m) */}
       <mesh position={[0, (bandY0 + bandY1) / 2, 0]} {...hoverProps('altitude')}>
         <boxGeometry args={[0.1, bandY1 - bandY0, 0.1]} />
         <meshStandardMaterial ref={bandMat} transparent opacity={0.22} toneMapped={false} depthWrite={false} />
       </mesh>
-      <Html position={[0.12, bandY1 - 0.22, 0]} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
+      <Html position={[0.12, bandY0 + 0.12, 0]} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
         <span className="scene-label scene-label--muted whitespace-nowrap">release band</span>
       </Html>
 

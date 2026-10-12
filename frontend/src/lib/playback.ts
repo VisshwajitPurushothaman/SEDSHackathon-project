@@ -13,8 +13,12 @@
  */
 import type { TelemetryFrame } from '../api/types';
 
-/** Default screen time per mission second (1x). A sealed run (210 s) plays in ~8.4 s. */
-export const MS_PER_MISSION_SECOND = 40;
+/**
+ * Default screen time per mission second (1x). Balloon physics is real-time scale
+ * (~97 min to float), so 1x plays at 500x real time: a sealed run takes ~11.7 s.
+ */
+export const MS_PER_MISSION_SECOND = 2;
+export const REALTIME_FACTOR = 1000 / MS_PER_MISSION_SECOND;
 
 export const SPEEDS = [0.5, 1, 2, 4] as const;
 export type Speed = (typeof SPEEDS)[number];
@@ -32,6 +36,14 @@ export const NUMERIC_FIELDS = [
 ] as const satisfies readonly (keyof TelemetryFrame)[];
 
 export type NumericField = (typeof NUMERIC_FIELDS)[number];
+
+/** Numeric fields added by the new backend; interpolated only when both bracketing frames carry them. */
+export const OPTIONAL_NUMERIC_FIELDS = [
+  'vertical_speed_m_s',
+  'swing_amplitude_deg',
+  'balloon_volume_m3',
+  'balloon_vent_rate_kg_s',
+] as const satisfies readonly (keyof TelemetryFrame)[];
 
 /** A frame at an arbitrary playhead, plus where it came from. */
 export interface PlaybackFrame extends TelemetryFrame {
@@ -83,6 +95,11 @@ export function interpolateFrame(frames: readonly TelemetryFrame[], t: number): 
   // Discrete fields come from `a` (the frame at or before t).
   const out: PlaybackFrame = { ...a, frameIndex: i, exact: k === 0 };
   for (const key of NUMERIC_FIELDS) out[key] = lerp(a[key], b[key], k);
+  for (const key of OPTIONAL_NUMERIC_FIELDS) {
+    const va = a[key];
+    const vb = b[key];
+    if (typeof va === 'number' && typeof vb === 'number') out[key] = lerp(va, vb, k);
+  }
   out.time_s = t;
   return out;
 }

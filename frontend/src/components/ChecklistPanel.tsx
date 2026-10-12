@@ -61,8 +61,8 @@ export function ChecklistPanel() {
         </ol>
       </LayoutGroup>
       <p className="border-t border-line px-4 py-2 text-[10.5px] leading-snug text-faint">
-        States derive from the playhead frame. <span className="text-muted">≈</span> = interpolated between backend frames. Thresholds are
-        backend.py's own; the 5 g caution is display only.
+        States derive from the playhead frame. <span className="text-muted">≈</span> = interpolated between backend frames. Limits come from
+        config/mission.yaml; GO/ABORT is the ground station's recommendation. The 5 g caution is display only.
       </p>
     </section>
   );

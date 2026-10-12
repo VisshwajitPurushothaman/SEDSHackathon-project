@@ -2,7 +2,7 @@ import type { SimulateResponse, TelemetryFrame } from './types';
 
 export type { SimulateResponse, SimulateSummary, TelemetryFrame, Verdict, GateStatus } from './types';
 
-export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8000';
+export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://127.0.0.1:8000';
 
 /** GET /api/health. Resolves true only for the backend's exact status string. */
 export async function checkHealth(timeoutMs = 2500): Promise<boolean> {
@@ -33,9 +33,9 @@ export async function simulate(punctureUm: number, signal?: AbortSignal): Promis
 }
 
 export type StreamEnd =
-  /** A frame with is_abort or is_ignition arrived; we closed the stream. */
+  /** A GO or ABORT recommendation arrived; we closed the stream. */
   | 'terminal'
-  /** The server closed the stream after at least one frame (e.g. a TERMINATED run). */
+  /** The server sent `event: end` or closed the stream after at least one frame. */
   | 'closed';
 
 export interface StreamHandlers {
@@ -50,7 +50,8 @@ export interface StreamHandlers {
  *
  * EventSource reconnects on its own when the server closes the stream, which
  * would silently restart the simulation. So we close it ourselves:
- *  - as soon as a frame has is_abort or is_ignition, and
+ *  - as soon as a frame carries a GO or ABORT recommendation,
+ *  - on the server's explicit `event: end`, and
  *  - on the first `error` event after any frame was received (server closed).
  * An error before any frame is treated as a failure and also closed, so it
  * never retries in a loop.
@@ -79,11 +80,18 @@ export function openStream(punctureUm: number, handlers: StreamHandlers): () => 
     }
     received += 1;
     handlers.onFrame(frame);
-    if (frame.is_abort || frame.is_ignition) {
+    if (frame.is_abort || frame.go_recommended || frame.gate_status === 'ARMED') {
       close();
       handlers.onEnd('terminal');
     }
   };
+
+  source.addEventListener('end', () => {
+    if (closed) return;
+    close();
+    if (received > 0) handlers.onEnd('closed');
+    else handlers.onError('Stream ended without frames');
+  });
 
   source.onerror = () => {
     if (closed) return;

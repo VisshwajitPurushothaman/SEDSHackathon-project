@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { TelemetryFrame } from '../api/types';
 import { fixtures } from '../data/fixtures';
 import { interpolateFrame } from './playback';
 import {
@@ -8,12 +9,15 @@ import {
   deriveVerdict,
   gateConditions,
   parseLeakUm,
+  RELEASE_ALTITUDE_M,
   summarizeChecks,
 } from './checks';
 
 const sealed = fixtures.sealed;
 const leak = fixtures.leak100;
-const at = (frames: typeof sealed, t: number) => interpolateFrame(frames, t)!;
+const at = (frames: TelemetryFrame[], t: number) => interpolateFrame(frames, t)!;
+const last = (frames: TelemetryFrame[]) => frames[frames.length - 1];
+const frame = (over: Partial<TelemetryFrame>): TelemetryFrame => ({ ...sealed[30], ...over });
 
 describe('deriveChecks', () => {
   it('is all PENDING before any telemetry', () => {
@@ -23,82 +27,86 @@ describe('deriveChecks', () => {
   });
 
   it('sealed run: tank PASS, altitude MONITORING during the climb', () => {
-    const c = deriveChecks(at(sealed, 60));
+    const c = deriveChecks(at(sealed, 2000));
     expect(c.tank.state).toBe('PASS');
     expect(c.altitude.state).toBe('MONITORING');
     expect(c.pressure.state).toBe('MONITORING');
-    expect(c.motor.state).toBe('MONITORING');
     expect(c.mass.state).toBe('MONITORING');
   });
 
-  it('release altitude passes at >= 25 000 m', () => {
-    expect(deriveChecks(at(sealed, 201)).altitude.state).toBe('MONITORING');
-    expect(deriveChecks(at(sealed, 209)).altitude.state).toBe('PASS');
+  it('release altitude passes inside the 26-30 km band', () => {
+    expect(deriveChecks(frame({ altitude_m: 25_000 })).altitude.state).toBe('MONITORING');
+    expect(deriveChecks(frame({ altitude_m: 28_000 })).altitude.state).toBe('PASS');
+    expect(deriveChecks(frame({ altitude_m: 31_000 })).altitude.state).toBe('HOLD');
+    expect(deriveChecks(last(sealed)).altitude.state).toBe('PASS');
   });
 
-  it('tilt passes only inside ±1.5°', () => {
-    expect(deriveChecks(at(sealed, 1)).tilt.state).toBe('HOLD'); // 2.76°
-    expect(deriveChecks(at(sealed, 26)).tilt.state).toBe('PASS'); // 1.12°
-    expect(deriveChecks(at(sealed, 210)).tilt.state).toBe('PASS'); // -0.72°
-    expect(deriveChecks(at(sealed, 209)).tilt.state).toBe('HOLD'); // -2.2°
+  it('swing is judged on the amplitude, not the instantaneous tilt', () => {
+    expect(deriveChecks(frame({ tilt_deg: 0.01, swing_amplitude_deg: 2.0 })).tilt.state).toBe('HOLD');
+    expect(deriveChecks(frame({ tilt_deg: 1.0, swing_amplitude_deg: 1.2 })).tilt.state).toBe('PASS');
   });
 
-  it('mass balance: caution above 5 g (display), FAIL when the backend flags the leak', () => {
-    expect(deriveChecks(at(leak, 26)).mass.state).toBe('MONITORING'); // 2.33 g
-    expect(deriveChecks(at(leak, 76)).mass.state).toBe('HOLD'); // 6.8 g
-    expect(deriveChecks(at(leak, 113)).mass.state).toBe('FAIL');
+  it('motor below the qualified minimum holds', () => {
+    expect(deriveChecks(frame({ motor_temp_c: -12 })).motor.state).toBe('HOLD');
+    expect(deriveChecks(frame({ motor_temp_c: 5 })).motor.state).toBe('PASS');
   });
 
-  it('100 µm leak: tank FAILs exactly at the leak frame and scrubbing back restores PASS', () => {
-    expect(deriveChecks(at(leak, 112.9)).tank.state).toBe('PASS');
-    const failed = deriveChecks(at(leak, 113));
+  it('mass balance: caution above 5 g (display), FAIL when the ground detector declares a leak', () => {
+    expect(deriveChecks(frame({ mass_loss_g: 1 })).mass.state).toBe('MONITORING');
+    expect(deriveChecks(frame({ mass_loss_g: 6 })).mass.state).toBe('HOLD');
+    expect(deriveChecks(last(leak)).mass.state).toBe('FAIL');
+  });
+
+  it('100 um leak: tank FAILs exactly at the detection frame and scrubbing back restores PASS', () => {
+    const tLeak = last(leak).time_s;
+    expect(deriveChecks(at(leak, tLeak - 0.1)).tank.state).toBe('PASS');
+    const failed = deriveChecks(at(leak, tLeak));
     expect(failed.tank.state).toBe('FAIL');
-    expect(failed.tank.note).toContain('101');
+    expect(failed.tank.note).toMatch(/\d+ µm/);
     expect(summarizeChecks(failed).failed).toBe(2);
-    expect(deriveChecks(at(leak, 50)).tank.state).toBe('PASS');
+    expect(deriveChecks(at(leak, 10)).tank.state).toBe('PASS');
   });
 });
 
 describe('gate and verdict', () => {
-  it('explains the gate with the backend arming rule', () => {
-    expect(gateConditions(at(sealed, 210))).toEqual({ altitude: true, tilt: true, sealed: true });
-    expect(gateConditions(at(sealed, 209))).toEqual({ altitude: true, tilt: false, sealed: true });
+  it('explains the gate with the backend gate states', () => {
+    const g = gateConditions(last(sealed));
+    expect(g.map((x) => x.id)).toEqual(['float', 'nav', 'motor', 'swing', 'impact', 'tank']);
+    expect(g.every((x) => x.ok === true)).toBe(true);
   });
 
-  it('derives verdicts like the backend', () => {
-    expect(deriveVerdict(sealed, true)).toEqual({ verdict: 'IGNITION_CONFIRMED', abort_reason: null });
-    expect(deriveVerdict(leak, true)).toEqual({
-      verdict: 'MISSION_ABORTED',
-      abort_reason: 'Pneumatic Depletion Detected: LEAK:101µm',
-    });
+  it('derives verdicts like the backend; never "ignition confirmed"', () => {
+    expect(deriveVerdict(sealed, true)).toEqual({ verdict: 'GO_RECOMMENDED', abort_reason: null });
+    expect(deriveVerdict(leak, true)?.verdict).toBe('ABORT_RECOMMENDED');
+    expect(deriveVerdict(leak, true)?.abort_reason).toMatch(/^Pressurant leak detected: LEAK:\d+µm$/);
     expect(deriveVerdict(sealed.slice(0, 3), false)).toBeNull();
-    expect(deriveVerdict(sealed.slice(0, 3), true)?.verdict).toBe('TERMINATED');
+    expect(deriveVerdict(sealed.slice(0, 3), true)?.verdict).toBe('NO_GO');
   });
 
   it('derives the phase from the playhead', () => {
     expect(derivePhase(null, false, null)).toBe('Standby');
     expect(derivePhase(at(sealed, 0), false, null)).toBe('Pad');
-    expect(derivePhase(at(sealed, 60), false, null)).toBe('Ascent');
-    expect(derivePhase(at(sealed, 209), false, null)).toBe('Release band');
-    expect(derivePhase(at(sealed, 210), true, 'IGNITION_CONFIRMED')).toBe('Armed');
-    expect(derivePhase(at(leak, 113), true, 'MISSION_ABORTED')).toBe('Aborted');
+    expect(derivePhase(at(sealed, 2000), false, null)).toBe('Ascent');
+    expect(derivePhase(at(sealed, last(sealed).time_s), true, 'GO_RECOMMENDED')).toBe('Armed');
+    expect(derivePhase(at(leak, last(leak).time_s), true, 'ABORT_RECOMMENDED')).toBe('Aborted');
   });
 });
 
 describe('deriveMissionEvents', () => {
-  it('sealed run: release crossing is interpolated, then ARMED', () => {
+  it('sealed run: release crossing is interpolated, then GO', () => {
     const ev = deriveMissionEvents(sealed, true);
     expect(ev.map((e) => e.kind)).toEqual(['release', 'armed']);
-    // 24 120 m @ 201 s -> 25 080 m @ 209 s: 25 000 m at 201 + 880/960*8.
-    expect(ev[0].t).toBeCloseTo(201 + (880 / 960) * 8, 6);
+    const i = sealed.findIndex((f) => f.altitude_m >= RELEASE_ALTITUDE_M);
+    const [a, b] = [sealed[i - 1], sealed[i]];
+    expect(ev[0].t).toBeCloseTo(a.time_s + ((RELEASE_ALTITUDE_M - a.altitude_m) / (b.altitude_m - a.altitude_m)) * (b.time_s - a.time_s), 6);
     expect(ev[0].derived).toBe(true);
-    expect(ev[1].t).toBe(210);
+    expect(ev[1].t).toBe(last(sealed).time_s);
   });
 
-  it('leak run: leak and abort at 113 s', () => {
+  it('leak run: leak and abort on the detection frame', () => {
     const ev = deriveMissionEvents(leak, true);
     expect(ev.map((e) => e.kind).sort()).toEqual(['abort', 'leak']);
-    expect(ev.every((e) => e.t === 113)).toBe(true);
+    expect(ev.every((e) => e.t === last(leak).time_s)).toBe(true);
   });
 
   it('parses the leak estimate', () => {

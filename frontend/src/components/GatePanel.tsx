@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, CircleCheck, CircleSlash, Hand, Loader2, OctagonX, Play, Rocket, TriangleAlert, X } from 'lucide-react';
+import { Check, CircleCheck, CircleSlash, Hand, Loader2, Minus, OctagonX, Play, Rocket, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { gateConditions } from '../lib/checks';
 import { IGNITION } from '../scene/shared';
@@ -9,12 +9,13 @@ import { selectAtEnd, useCurrentFrame, useMission } from '../store/useMission';
 const card = 'panel pointer-events-auto w-full max-w-[540px] px-4 py-3 shadow-2xl shadow-black/40';
 const enter = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 8 }, transition: { duration: 0.22, ease: 'easeOut' } } as const;
 
-function Cond({ ok, label }: { ok: boolean; label: string }) {
+function Cond({ ok, label }: { ok: boolean | null; label: string }) {
+  const tone = ok === null ? 'text-muted' : ok ? 'text-pass' : 'text-hold';
   return (
-    <li className={`inline-flex items-center gap-1 ${ok ? 'text-pass' : 'text-hold'}`}>
-      {ok ? <Check size={12} aria-hidden /> : <X size={12} aria-hidden />}
+    <li className={`inline-flex items-center gap-1 ${tone}`}>
+      {ok ? <Check size={12} aria-hidden /> : ok === null ? <Minus size={12} aria-hidden /> : <X size={12} aria-hidden />}
       <span className="num">{label}</span>
-      <span className="sr-only">{ok ? 'met' : 'not met'}</span>
+      <span className="sr-only">{ok === null ? 'not evaluated' : ok ? 'met' : 'not met'}</span>
     </li>
   );
 }
@@ -76,7 +77,7 @@ export function GatePanel() {
           <OctagonX size={22} className="animate-abort-flash text-fail" aria-hidden />
           <div className="flex-1">
             <div className="font-display text-[17px] font-semibold tracking-wide text-fail">MISSION ABORTED</div>
-            <div className="num text-[12.5px] text-ink">{summary?.abort_reason ?? `Pneumatic Depletion Detected: ${f.leak_status}`}</div>
+            <div className="num text-[12.5px] text-ink">{summary?.abort_reason ?? `Pressurant leak detected: ${f.leak_status}`}</div>
           </div>
         </div>
         <div className="mt-1.5 text-[11px] text-muted">
@@ -139,7 +140,7 @@ export function GatePanel() {
               <span className="font-display text-[17px] font-semibold tracking-wide text-armed">GO RECOMMENDED</span>
             </div>
             <div className="mt-0.5 text-[12px] text-ink">Operator must commit. Software recommends; a human commits.</div>
-            <div className="num mt-0.5 text-[11px] text-muted">gate_status = ARMED · is_ignition = true (backend)</div>
+            <div className="num mt-0.5 text-[11px] text-muted">recommendation = GO_RECOMMENDED (ground station) · 5 gates + no leak</div>
           </div>
           <HoldToCommit onCommit={commitIgnition} />
           <button type="button" className="btn border-hold/50 text-hold hover:bg-hold/10" onClick={holdCommit}>
@@ -148,15 +149,15 @@ export function GatePanel() {
         </div>
       </div>
     );
-  } else if (atEnd && summary?.verdict === 'TERMINATED') {
+  } else if (atEnd && summary?.verdict === 'NO_GO') {
     key = 'terminated';
     body = (
       <div className={card} role="status">
         <div className="flex items-center gap-2.5">
           <CircleSlash size={20} className="text-muted" aria-hidden />
           <div>
-            <div className="font-display text-[16px] font-semibold tracking-wide text-ink">FLIGHT TERMINATED</div>
-            <div className="text-[12px] text-muted">Climbed past the 30 km ceiling without the gate arming. No launch.</div>
+            <div className="font-display text-[16px] font-semibold tracking-wide text-ink">NO RECOMMENDATION</div>
+            <div className="text-[12px] text-muted">Simulation horizon reached without GO or ABORT. No launch.</div>
           </div>
         </div>
       </div>
@@ -171,10 +172,10 @@ export function GatePanel() {
             <span className="h-2.5 w-2.5 rounded-full bg-hold" aria-hidden />
             <span className="font-display text-[15px] font-semibold tracking-wide text-hold">LAUNCH GATE · NO-GO</span>
           </div>
-          <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px]" aria-label="Arming conditions (backend rule)">
-            <Cond ok={c.altitude} label="alt ≥ 25 km" />
-            <Cond ok={c.tilt} label="|tilt| ≤ 1.5°" />
-            <Cond ok={c.sealed} label="no leak" />
+          <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px]" aria-label="Commit gates (ground station)">
+            {c.map((g) => (
+              <Cond key={g.id} ok={g.ok} label={g.label} />
+            ))}
           </ul>
           {runStatus === 'streaming' && (
             <span className="inline-flex items-center gap-1 text-[11px] text-info">

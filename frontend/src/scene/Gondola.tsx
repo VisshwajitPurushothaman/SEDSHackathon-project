@@ -2,7 +2,7 @@ import { Html, Line } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import * as THREE from 'three';
-import { LEAK_FLAG_MASS_G, MASS_CAUTION_G } from '../lib/checks';
+import { MASS_CAUTION_G } from '../lib/checks';
 import { getCurrentFrame, useMission } from '../store/useMission';
 import { scene, ui } from '../theme/tokens';
 import { Highlight, hoverProps } from './interaction';
@@ -136,7 +136,7 @@ function MassReadout() {
           <Highlight id="mass" thickness={0.006} />
         </mesh>
         <Html zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
-          <div ref={box} className="mass-readout" data-tone="idle" title={`Backend leak flag above ${LEAK_FLAG_MASS_G} g`}>
+          <div ref={box} className="mass-readout" data-tone="idle" title="Ground estimate of helium lost (from noisy P and T). The leak decision is a slope test, not a mass threshold.">
             <span className="mass-readout__label">mass lost</span>
             <span>
               <span ref={value} className="mass-readout__value">

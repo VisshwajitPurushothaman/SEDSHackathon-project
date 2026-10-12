@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { memo } from 'react';
 import type { TelemetryFrame } from '../api/types';
-import { CHECK_DEFS, deriveChecks, START_TANK_PRES_BAR, TILT_LIMIT_DEG, type CheckId } from '../lib/checks';
+import { CHECK_DEFS, deriveChecks, START_TANK_PRES_BAR, swingOf, TILT_LIMIT_DEG, type CheckId } from '../lib/checks';
 import { endTimeOf, type PlaybackFrame } from '../lib/playback';
 import { useCurrentFrame, useMission } from '../store/useMission';
 import { CHECK_ICONS, InterpMark, STATE_BORDER, STATE_TEXT, StatePill } from './ui';
@@ -20,7 +20,7 @@ function checkValue(id: CheckId, f: PlaybackFrame | null): { value: string; unit
     case 'altitude':
       return { value: (f.altitude_m / 1000).toFixed(2), unit: 'km', interp };
     case 'tilt':
-      return { value: `${f.tilt_deg >= 0 ? '+' : ''}${f.tilt_deg.toFixed(2)}`, unit: '°', interp };
+      return { value: swingOf(f).toFixed(2), unit: '° amplitude', interp };
     case 'motor':
       return { value: f.motor_temp_c.toFixed(1), unit: '°C', interp };
     case 'atmosphere':
@@ -34,7 +34,7 @@ const SERIES: Record<CheckId, (f: TelemetryFrame) => number> = {
   pressure: (f) => f.tank_pres_bar,
   mass: (f) => f.mass_loss_g,
   altitude: (f) => f.altitude_m,
-  tilt: (f) => f.tilt_deg,
+  tilt: (f) => swingOf(f),
   motor: (f) => f.motor_temp_c,
   atmosphere: (f) => f.ext_temp_c,
 };
@@ -54,8 +54,8 @@ function Sparkline({ id, frames, current, endTime }: { id: CheckId; frames: Tele
     if (v > hi) hi = v;
   }
   if (id === 'tilt') {
-    lo = Math.min(lo, -TILT_LIMIT_DEG);
-    hi = Math.max(hi, TILT_LIMIT_DEG);
+    lo = 0;
+    hi = Math.max(hi, TILT_LIMIT_DEG * 1.2);
   }
   if (id === 'pressure' || id === 'tank') hi = Math.max(hi, START_TANK_PRES_BAR);
   if (hi - lo < 1e-6) {
@@ -76,7 +76,7 @@ function Sparkline({ id, frames, current, endTime }: { id: CheckId; frames: Tele
   return (
     <svg width={SW} height={SH} className="overflow-visible" aria-hidden>
       {id === 'tilt' && (
-        <rect x={0} y={y(TILT_LIMIT_DEG)} width={SW} height={Math.max(1, y(-TILT_LIMIT_DEG) - y(TILT_LIMIT_DEG))} className="fill-pass/10" />
+        <rect x={0} y={y(TILT_LIMIT_DEG)} width={SW} height={Math.max(1, y(0) - y(TILT_LIMIT_DEG))} className="fill-pass/10" />
       )}
       <line x1={0} x2={SW} y1={SH - 1} y2={SH - 1} className="stroke-line" strokeWidth={1} />
       <polyline points={pts.join(' ')} fill="none" className="stroke-info" strokeWidth={1.4} strokeLinejoin="round" />

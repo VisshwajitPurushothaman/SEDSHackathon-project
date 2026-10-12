@@ -1,0 +1,147 @@
+# AERO-FIRE mission configuration.
+#
+# Every physical constant and limit lives here. Each value carries a provenance
+# tag in its comment:
+#   [source: ...]   taken from a cited reference
+#   [ASSUMPTION]    chosen by us; not measured, not from a reference
+#   [measured]      measured on hardware (none yet: no hardware data exists)
+# Nothing in this file is measured. Treat every ASSUMPTION as a number to
+# replace with test data before any real flight.
+
+constants:
+  g0: 9.80665                 # m/s^2 standard gravity [source: CGPM 1901; US Standard Atmosphere 1976 (USSA76), NOAA-S/T 76-1562]
+  r0_earth: 6356766.0         # m, effective Earth radius for geopotential conversion [source: USSA76 eq. 18]
+  R_star: 8.31432             # J/(mol K) universal gas constant as used by USSA76 [source: USSA76 Table 2]
+  M_air: 0.0289644            # kg/mol, mean molar mass of air below 86 km [source: USSA76 Table 2]
+  R_air: 287.053              # J/(kg K) = R_star / M_air [source: USSA76]
+  R_He: 2077.1                # J/(kg K) specific gas constant of helium [source: R_u / M_He = 8.314462 / 0.0040026]
+  gamma_He: 1.667             # ratio of specific heats, monatomic ideal gas = 5/3 [source: kinetic theory]
+  B2_He_m3_per_mol: 11.8e-6   # second virial coefficient of He near 300 K [source: Dymond et al., "Virial Coefficients of Pure Gases", Landolt-Boernstein IV/21A (2002): ~11.8 cm^3/mol]
+  sigma_sb: 5.670374419e-8    # W/(m^2 K^4) Stefan-Boltzmann constant [source: CODATA 2018]
+  wgs84_a: 6378137.0          # m, WGS84 semi-major axis [source: NIMA TR8350.2]
+  wgs84_f: 0.0033528106647474805  # WGS84 flattening 1/298.257223563 [source: NIMA TR8350.2]
+
+site:
+  name: "Illustrative launch site near Sriharikota"   # [ASSUMPTION] default from the original backend
+  lat_deg: 13.72              # [ASSUMPTION] launch latitude (original backend default)
+  lon_deg: 80.23              # [ASSUMPTION] launch longitude (original backend default)
+  elevation_m: 5.0            # [ASSUMPTION] launch pad elevation
+
+atmosphere:
+  # Live data: Open-Meteo forecast API, pressure-level variables.
+  open_meteo_url: "https://api.open-meteo.com/v1/forecast"
+  levels_hpa: [1000, 925, 850, 700, 500, 300, 250, 200, 150, 100, 70, 50, 30, 20, 10]  # requested; only levels actually served are used [source: open-meteo.com/en/docs pressure-level variables]
+  timeout_s: 6.0              # [ASSUMPTION] HTTP timeout
+  cache_s: 1800               # [ASSUMPTION] reuse a fetched profile for 30 min
+  blend_m: 2000.0             # [ASSUMPTION per brief] blend from the top live level into ISA over 2 km
+  humidity: "ignored"         # [ASSUMPTION] dry air everywhere (R_air for density)
+
+balloon:
+  # Zero-pressure balloon (vents through base ducts at full volume; does not burst).
+  m_envelope_kg: 45.0         # [ASSUMPTION] envelope + ducts + fittings
+  m_gondola_kg: 40.0          # [ASSUMPTION] gondola structure, avionics, parachute
+  m_ballast_kg: 10.0          # [ASSUMPTION]
+  free_lift_fraction: 0.10    # [ASSUMPTION] free lift / gross weight at launch (typical 0.08-0.15)
+  V_max_m3: 5600.0            # [ASSUMPTION] full (zero-pressure) volume; sets float near 28 km for this mass
+  Cd: 0.45                    # [ASSUMPTION per brief, range 0.3-0.5] vertical drag coefficient of the envelope
+  gas_temperature: "ambient"  # [ASSUMPTION] T_gas = T_air; solar/IR superheat ignored
+  added_mass_coeff: 0.5       # [source: potential flow, sphere: added mass = 0.5 * rho_air * V]
+  horizontal_motion: "follows wind"  # [ASSUMPTION] balloon horizontal velocity equals the local wind (no lag)
+  ballast_controller:         # onboard float keeping; acts only after the balloon first reaches full volume
+    # Drop sized to the drag that balances the measured mean sink rate: m = margin * 1/2 rho Cd A vbar^2 / g.
+    vz_filter_tau_s: 120.0    # [ASSUMPTION] mean vertical speed filter (longer than the float bounce)
+    trigger_vz_m_s: -0.15     # [ASSUMPTION] act when the filtered vertical speed is below this
+    margin: 1.2               # [ASSUMPTION] drop slightly more than the drag-balance estimate
+    lockout_s: 300.0          # [ASSUMPTION] wait for the response before the next drop
+    max_rate_kg_s: 0.05       # [ASSUMPTION] ballast hopper flow limit
+  envelope_leak_dp_pa: 5.0    # [ASSUMPTION] small internal overpressure of a zero-pressure balloon near the crown
+  envelope_leak_cd: 0.6       # [ASSUMPTION] discharge coefficient of an envelope tear
+
+tank:
+  # Rocket helium pressurant tank (COPV).
+  V_m3: 0.010                 # [ASSUMPTION] 10 L composite pressure vessel (the original backend used 0.5 m^3)
+  P0_bar: 200.0               # [ASSUMPTION per original backend] fill pressure
+  T0_c: 26.0                  # [ASSUMPTION per original backend] fill temperature
+  compressibility: "virial"   # Z = 1 + B2 P / (R_u T); "ideal" sets Z = 1 [source: virial equation of state]
+  orifice_cd: 0.62            # [ASSUMPTION] discharge coefficient of a puncture (sharp-edged orifice ~0.61, White, Fluid Mechanics)
+  wall_heat_capacity_j_per_k: 3600.0  # [ASSUMPTION] liner + overwrap, e.g. 4 kg at ~900 J/(kg K)
+  UA_sea_level_w_per_k: 1.5   # [ASSUMPTION] effective conductance to ambient air through the rocket skin at sea-level density
+  UA_density_exponent: 0.5    # [source: laminar natural convection, Nu ~ Ra^(1/4), Ra ~ rho^2 -> h ~ rho^0.5]
+  UA_floor_w_per_k: 0.05      # [ASSUMPTION] conduction/radiation path that remains in near-vacuum
+
+motor:
+  heat_capacity_j_per_k: 8000.0   # [ASSUMPTION] e.g. 8 kg motor at ~1000 J/(kg K)
+  T0_c: 25.0                  # [ASSUMPTION] temperature at launch
+  UA_sea_level_w_per_k: 2.0   # [ASSUMPTION] insulated motor bay, convective conductance at sea-level density
+  UA_density_exponent: 0.5    # [source: as tank]
+  emissivity_area_m2: 0.12    # [ASSUMPTION] effective emissivity x area (insulation blanket, eps 0.2 x 0.6 m^2)
+  T_sky_k: 220.0              # [ASSUMPTION] effective radiative sink temperature at altitude (no solar input: night)
+  heater_w: 80.0              # [ASSUMPTION] heater power (sized so the nominal motor holds the setpoint at float)
+  heater_setpoint_c: 10.0     # [ASSUMPTION] thermostat setpoint (on below, off above)
+  T_min_qualified_c: -10.0    # [ASSUMPTION per brief] minimum qualified ignition temperature
+
+pendulum:
+  length_m: 15.0              # [ASSUMPTION] suspension point to gondola centre of mass (flight train)
+  damping_ratio: 0.02         # [ASSUMPTION] aerodynamic damping
+  gust_accel_sigma_m_s2: 0.02 # [ASSUMPTION] white-noise horizontal acceleration of the suspension point (turbulence)
+  substeps: 10                # integration substeps per simulation step
+
+sensors:
+  tank_P_sigma_bar: 0.2       # [ASSUMPTION] pressure transducer noise (about 0.05 % of a 400 bar full scale)
+  tank_T_sigma_k: 0.3         # [ASSUMPTION] tank temperature sensor noise
+  motor_T_sigma_k: 0.3        # [ASSUMPTION]
+  baro_sigma_pa: 2.0          # [ASSUMPTION] static pressure sensor noise
+  gnss_sigma_h_m: 2.5         # [ASSUMPTION] GNSS horizontal (per axis)
+  gnss_sigma_v_m: 4.0         # [ASSUMPTION] GNSS vertical
+  navic_sigma_h_m: 5.0        # [ASSUMPTION] NavIC horizontal (per axis)
+  navic_sigma_v_m: 8.0        # [ASSUMPTION] NavIC vertical
+  baro_alt_model_sigma_m: 30.0  # [ASSUMPTION] altitude error from inverting pressure through the forecast atmosphere
+  imu_tilt_sigma_deg: 0.05    # [ASSUMPTION] gondola tilt (inclinometer/IMU) noise
+  imu_rate_sigma_deg_s: 0.05  # [ASSUMPTION] tilt-rate noise
+  air_temp_sigma_k: 0.5       # [ASSUMPTION] outside air temperature probe
+  balloon_volume_sigma_frac: 0.01   # [ASSUMPTION] envelope volume estimate (e.g. from a shape camera), 1 % noise
+  vent_rate_sigma_kg_s: 0.0005      # [ASSUMPTION] duct flow sensor noise
+
+leak_detector:
+  # Ground-side: least-squares slope of estimated He mass over a sliding window.
+  window_s: 120.0             # [ASSUMPTION per brief]
+  stride_s: 30.0              # [ASSUMPTION] evaluate a new window every 30 s
+  alpha: 0.001                # [ASSUMPTION per brief] one-sided significance per window
+  consecutive: 3              # [ASSUMPTION] N consecutive significant windows to declare a leak
+
+gates:
+  release_band_m: [26000.0, 30000.0]  # [ASSUMPTION] altitude band in which release is allowed
+  float_max_vz_m_s: 1.0       # [ASSUMPTION per brief]
+  swing_max_amplitude_deg: 1.5  # [ASSUMPTION per brief]
+  chi2_2dof_999: 13.816       # [source: chi-square quantile, p = 0.999, 2 dof]
+  chi2_1dof_999: 10.828       # [source: chi-square quantile, p = 0.999, 1 dof]
+  nav_window_epochs: 10       # [ASSUMPTION] chi-square tested on the mean residual of the last 10 epochs
+  nav_alert_persist_s: 5.0    # [ASSUMPTION] integrity alert only after the gate has failed this long
+  early_burnout_fractions: [0.3, 0.6]  # [ASSUMPTION] failure cases for the impact-safety gate
+  # Approved impact area (lat, lon), closed polygon. ILLUSTRATIVE, not an official range.
+  approved_area: [[13.00, 79.60], [14.60, 79.60], [14.60, 82.50], [13.00, 82.50]]  # [ASSUMPTION]
+
+rocket:
+  # ILLUSTRATIVE MODEL, NOT VALIDATED.
+  m_dry_kg: 15.0              # [ASSUMPTION]
+  m_prop_kg: 10.0             # [ASSUMPTION]
+  isp_s: 210.0                # [ASSUMPTION] vacuum-ish specific impulse of a small pressure-fed motor
+  burn_time_s: 8.0            # [ASSUMPTION] constant-thrust burn
+  diameter_m: 0.12            # [ASSUMPTION]
+  Cd: 0.4                     # [ASSUMPTION] constant drag coefficient (no Mach dependence)
+  rail_elevation_deg: 80.0    # [ASSUMPTION]
+  rail_azimuth_deg: 90.0      # [ASSUMPTION] launch towards the east (sea)
+  rail_length_m: 3.0          # [ASSUMPTION]
+
+descent:
+  parachute_cd: 1.5           # [ASSUMPTION] round parachute
+  parachute_diameter_m: 6.0   # [ASSUMPTION]
+
+sim:
+  dt_s: 1.0                   # integration step
+  pad_hold_s: 30.0            # [ASSUMPTION] pre-launch pad time simulated before the balloon is released
+  commit_to_ignition_s: 5.0   # [ASSUMPTION] ignition countdown after the operator commit (motor arming, valve sequence)
+  cutdown_delay_s: 60.0       # [ASSUMPTION] committed sequence: gondola cut-down this long after the rocket leaves the rail
+  max_mission_s: 21600.0      # simulation horizon (6 h). Reaching it stops the simulation; it never triggers an action.
+  gates_hold_s: 10.0          # [ASSUMPTION] all gates must pass continuously this long before GO_RECOMMENDED
+  impact_eval_period_s: 30.0  # how often the ground re-computes impact points (rocket model runs)

@@ -68,13 +68,25 @@ function Tickers() {
         flashKey={f?.gate_status}
       />
       <Ticker
-        label="is_abort · is_ignition"
-        field="is_abort, is_ignition"
-        value={f ? `${bool(f.is_abort)} · ${bool(f.is_ignition)}` : dash}
+        label="Recommendation"
+        field="recommendation"
+        value={f?.recommendation ?? (f ? (f.is_abort ? 'ABORT_RECOMMENDED' : 'NO_GO') : dash)}
         source="frame"
-        tone={f?.is_abort ? 'text-fail' : f?.is_ignition ? 'text-pass' : 'text-ink'}
-        flashKey={f ? `${f.is_abort}${f.is_ignition}` : undefined}
+        tone={f?.is_abort ? 'text-fail' : f?.go_recommended ? 'text-pass' : 'text-ink'}
+        flashKey={f?.recommendation}
       />
+      <Ticker label="Swing amplitude" field="swing_amplitude_deg" value={f?.swing_amplitude_deg !== undefined ? f.swing_amplitude_deg.toFixed(2) : dash} unit="°" source="interp" />
+      <Ticker label="Vertical speed" field="vertical_speed_m_s" value={f?.vertical_speed_m_s !== undefined ? signed(f.vertical_speed_m_s, 2) : dash} unit="m/s" source="interp" />
+      <Ticker label="Balloon volume" field="balloon_volume_m3" value={f?.balloon_volume_m3 !== undefined ? fmtInt(f.balloon_volume_m3) : dash} unit="m³" source="interp" />
+      <Ticker
+        label="Balloon vent"
+        field="balloon_vent_rate_kg_s"
+        value={f?.balloon_vent_rate_kg_s !== undefined ? (f.balloon_vent_rate_kg_s * 1000).toFixed(1) : dash}
+        unit="g/s"
+        source="interp"
+        tone={f?.balloon_venting ? 'text-info' : 'text-ink'}
+      />
+      <Ticker label="Atmosphere source" field="atmo_source" value={f?.atmo_source ?? dash} source="frame" tone="text-muted" />
     </div>
   );
 }

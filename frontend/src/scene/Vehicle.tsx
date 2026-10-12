@@ -2,7 +2,7 @@ import { Line } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { TILT_LIMIT_DEG } from '../lib/checks';
+import { swingOf, TILT_LIMIT_DEG } from '../lib/checks';
 import { getCurrentFrame } from '../store/useMission';
 import { ui } from '../theme/tokens';
 import { Balloon } from './Balloon';
@@ -31,7 +31,8 @@ function TiltWedge() {
   useFrame(() => {
     const f = getCurrentFrame();
     if (!mat.current) return;
-    mat.current.color.copy(!f ? cIdle : Math.abs(f.tilt_deg) <= TILT_LIMIT_DEG ? cPass : cHold);
+    // Coloured by the swing AMPLITUDE (the gated quantity), not by the instantaneous angle.
+    mat.current.color.copy(!f ? cIdle : swingOf(f) <= TILT_LIMIT_DEG ? cPass : cHold);
   });
   const edge = (sign: number): [number, number, number][] => [
     [0, 0, 0],
