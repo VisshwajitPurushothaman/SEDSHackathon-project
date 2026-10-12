@@ -5,9 +5,7 @@
  */
 import { create } from 'zustand';
 import { API_URL } from '../api/client';
-import { missionsApi, streamMission, type Alert, type EventLogEntry, type Faults, type GroundFrame, type MissionSummary } from './api';
-
-export type CameraMode = 'chase' | 'ground' | 'top';
+import { missionsApi, streamMission, type Alert, type EventLogEntry, type GroundFrame, type MissionSummary } from './api';
 
 export interface PublicConfig {
   site: { lat_deg: number; lon_deg: number; elevation_m: number; name: string };
@@ -18,22 +16,6 @@ export interface PublicConfig {
   tank: { P0_bar: number };
   api: { default_time_scale: number; truth_enabled: boolean };
 }
-
-export interface Preset {
-  id: string;
-  label: string;
-  hint: string;
-  faults: Faults;
-}
-
-/** Demo scenarios (faults are test configuration, not something the operator knows in flight). */
-export const PRESETS: Preset[] = [
-  { id: 'nominal', label: 'Nominal', hint: 'no faults', faults: {} },
-  { id: 'leak', label: '100 µm tank leak', hint: 'puncture present at launch', faults: { tank_leak_um: 100 } },
-  { id: 'spoof', label: 'GNSS spoofed (ascent)', hint: 'fix drifts 2 m/s from T+1800 s', faults: { gnss_spoof_start_s: 1800 } },
-  { id: 'blackout', label: '10-min blackout (float)', hint: 'link lost T+6000…6600 s', faults: { blackouts: [[6000, 6600]] } },
-  { id: 'cold', label: 'Motor too cold', hint: 'heater failed', faults: { motor_heater_failed: true } },
-];
 
 const OP_KEY = 'aerofire.operator';
 const readOperator = () => {
@@ -61,19 +43,12 @@ interface FlightState {
   error: string | null;
   busy: boolean;
   operator: string;
-  camera: CameraMode;
   events: EventLogEntry[];
   /** Server-confirmed acknowledgements: shown even when no later frame arrives (e.g. after landing). */
   acks: Record<number, Alert>;
-  presetId: string;
-  timeScale: number;
 
   loadConfig: () => Promise<void>;
   setOperator: (name: string) => void;
-  setCamera: (m: CameraMode) => void;
-  setPreset: (id: string) => void;
-  setTimeScale: (s: number) => void;
-  start: () => Promise<void>;
   attach: (id: string) => void;
   detach: () => void;
   goLive: () => void;
@@ -99,11 +74,8 @@ export const useFlight = create<FlightState>((set, get) => ({
   error: null,
   busy: false,
   operator: readOperator(),
-  camera: 'chase',
   events: [],
   acks: {},
-  presetId: 'nominal',
-  timeScale: 60,
 
   loadConfig: async () => {
     try {
@@ -121,24 +93,7 @@ export const useFlight = create<FlightState>((set, get) => ({
       /* private mode */
     }
   },
-  setCamera: (camera) => set({ camera }),
-  setPreset: (presetId) => set({ presetId }),
-  setTimeScale: (timeScale) => set({ timeScale }),
 
-  start: async () => {
-    const { presetId, timeScale } = get();
-    const preset = PRESETS.find((p) => p.id === presetId) ?? PRESETS[0];
-    set({ busy: true, error: null });
-    try {
-      const r = await missionsApi.create({ name: preset.label, time_scale: timeScale, atmosphere: 'live', faults: preset.faults, seed: Math.floor(Math.random() * 1e6) });
-      get().attach(r.mission_id);
-      set({ summary: r.summary });
-    } catch (e) {
-      set({ error: (e as Error).message });
-    } finally {
-      set({ busy: false });
-    }
-  },
 
   attach: (id) => {
     get().detach();

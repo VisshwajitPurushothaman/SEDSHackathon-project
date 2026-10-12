@@ -7,12 +7,11 @@ import { selectFrame, useFlight } from './store';
 import { TelemetryGroups } from './TelemetryGroups';
 import { fmtT } from './ui';
 
-const FlightScene = lazy(() => import('./FlightScene'));
 const MapPanel = lazy(() => import('./MapPanel'));
 
 const Loading = ({ what }: { what: string }) => <div className="grid h-full place-items-center text-xs uppercase tracking-[0.18em] text-faint">Loading {what}…</div>;
 
-/** Flight window: phase timeline, 3D view + map, gates and alerts, telemetry, mission control. */
+/** Flight window: phase timeline, map, gates and alerts, telemetry, mission control. */
 export default function FlightView() {
   const frame = useFlight(selectFrame);
   const loadConfig = useFlight((s) => s.loadConfig);
@@ -41,7 +40,7 @@ export default function FlightView() {
               {!live && <span className="text-hold">replay</span>}
             </>
           ) : (
-            <span>No mission attached: pick a scenario and press Start.</span>
+            <span>No mission attached: select a received mission.</span>
           )}
         </div>
       </div>
@@ -63,12 +62,7 @@ export default function FlightView() {
         </div>
 
         <div className="order-1 flex min-h-[560px] flex-col gap-3 lg:order-2 lg:min-h-0">
-          <section className="relative min-h-[320px] flex-[3] overflow-hidden rounded-panel border border-line bg-bg" aria-label="3D flight view">
-            <Suspense fallback={<Loading what="3D view" />}>
-              <FlightScene frame={frame} />
-            </Suspense>
-          </section>
-          <section className="relative min-h-[220px] flex-[2]" aria-label="Map">
+          <section className="relative min-h-[420px] flex-1" aria-label="Map">
             <Suspense fallback={<Loading what="map" />}>
               <MapPanel frame={frame} />
             </Suspense>

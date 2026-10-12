@@ -1,5 +1,4 @@
 import { CircleCheck, CircleDashed, CircleX, Hand, ShieldCheck } from 'lucide-react';
-import { HoldToCommit } from '../components/HoldToCommit';
 import type { Gate, GroundFrame } from './api';
 import { useFlight } from './store';
 
@@ -105,7 +104,9 @@ export function GatesPanel({ frame }: { frame: GroundFrame | null }) {
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               {rec === 'GO_RECOMMENDED' && op.state === 'none' && (
-                <HoldToCommit onCommit={() => void command('commit')} disabled={!canCommit || busy} />
+                <button type="button" className="btn border-pass/50 text-pass" onClick={() => void command('commit')} disabled={!canCommit || busy}>
+                  Record GO (operator)
+                </button>
               )}
               {op.state === 'held' ? (
                 <button type="button" className="btn" onClick={() => void command('release')} disabled={!live || busy}>
@@ -117,13 +118,9 @@ export function GatesPanel({ frame }: { frame: GroundFrame | null }) {
                 </button>
               )}
               {['ASCENT', 'FLOAT'].includes(frame.vehicle_phase) && (
-                <HoldToCommit
-                  label="Hold to terminate"
-                  ariaLabel="Hold for 1.5 seconds to terminate: cut down without launch"
-                  tone="fail"
-                  onCommit={() => void command('terminate')}
-                  disabled={!live || busy || !operator.trim()}
-                />
+                <button type="button" className="btn border-fail/50 text-fail" onClick={() => void command('terminate')} disabled={!live || busy || !operator.trim()}>
+                  Terminate (cut down)
+                </button>
               )}
             </div>
           )}

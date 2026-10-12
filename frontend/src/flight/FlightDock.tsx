@@ -1,15 +1,8 @@
-import { Pause, Play, Radio, Rocket, SatelliteDish, UserRound } from 'lucide-react';
-import { useEffect } from 'react';
-import type { GroundFrame } from './api';
-import { PRESETS, useFlight, type CameraMode } from './store';
+import { Pause, Play, Radio, SatelliteDish, UserRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { missionsApi, type GroundFrame, type MissionSummary } from './api';
+import { useFlight } from './store';
 import { fmtT } from './ui';
-
-const SCALES = [30, 60, 120, 600];
-const CAMS: { id: CameraMode; label: string }[] = [
-  { id: 'chase', label: 'Chase' },
-  { id: 'ground', label: 'Ground station' },
-  { id: 'top', label: 'Top-down' },
-];
 
 /** LIVE (fresh fused fixes) vs PREDICTED (blackout) badge with the last fix time. Never a frozen "live" value. */
 export function LinkBadge({ frame }: { frame: GroundFrame | null }) {
@@ -31,6 +24,9 @@ export function LinkBadge({ frame }: { frame: GroundFrame | null }) {
 export function FlightDock() {
   const s = useFlight();
   const frame = s.frames[s.cursor] ?? null;
+  const [missions, setMissions] = useState<MissionSummary[]>([]);
+  const refresh = () => void missionsApi.list().then(setMissions).catch(() => setMissions([]));
+  useEffect(refresh, []);
 
   // Replay clock.
   useEffect(() => {
@@ -42,32 +38,23 @@ export function FlightDock() {
   return (
     <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-panel/85 px-4 py-2.5 backdrop-blur-panel" aria-label="Mission control">
       <div className="flex items-center gap-2">
-        <label className="text-[11px] text-muted" htmlFor="preset">
-          Scenario
+        <label className="text-[11px] text-muted" htmlFor="mission">
+          Mission
         </label>
         <select
-          id="preset"
+          id="mission"
           className="rounded-md border border-line bg-panel2 px-2 py-1 text-xs text-ink"
-          value={s.presetId}
-          onChange={(e) => s.setPreset(e.target.value)}
-          title={PRESETS.find((p) => p.id === s.presetId)?.hint}
+          value={s.missionId ?? ''}
+          onFocus={refresh}
+          onChange={(e) => e.target.value && s.attach(e.target.value)}
         >
-          {PRESETS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
+          <option value="">Select a received mission…</option>
+          {missions.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name} · {m.state}
             </option>
           ))}
         </select>
-        <div className="seg" role="group" aria-label="Time scale">
-          {SCALES.map((x) => (
-            <button key={x} type="button" aria-pressed={s.timeScale === x} onClick={() => s.setTimeScale(x)} className="num" title={`${x} mission seconds per second`}>
-              {x}×
-            </button>
-          ))}
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => void s.start()} disabled={s.busy}>
-          <Rocket size={14} aria-hidden /> Start mission
-        </button>
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -114,13 +101,6 @@ export function FlightDock() {
         </button>
       </div>
 
-      <div className="seg" role="group" aria-label="Camera">
-        {CAMS.map((c) => (
-          <button key={c.id} type="button" aria-pressed={s.camera === c.id} onClick={() => s.setCamera(c.id)}>
-            {c.label}
-          </button>
-        ))}
-      </div>
       <LinkBadge frame={frame} />
       {(s.error || s.streamNote) && (
         <span className="w-full text-[11px] text-hold" role="alert">

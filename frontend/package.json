@@ -12,17 +12,11 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
-    "@react-three/drei": "^9.122.0",
-    "@react-three/fiber": "^8.18.0",
-    "@react-three/postprocessing": "^2.19.1",
-    "framer-motion": "^11.18.2",
     "lucide-react": "^0.453.0",
     "maplibre-gl": "^4.7.1",
-    "postprocessing": "^6.39.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.15.4",
-    "three": "^0.169.0",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
@@ -30,7 +24,6 @@
     "@types/node": "^22.20.5",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
-    "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.6.1",
     "postcss": "^8.5.29",
