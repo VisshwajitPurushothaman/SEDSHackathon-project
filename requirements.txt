@@ -6,3 +6,4 @@ numpy>=1.26
 scipy>=1.11
 PyYAML>=6.0
 httpx>=0.27
+scikit-learn>=1.7          # hybrid trajectory forecast (models/traj_forecaster_v1.joblib built with 1.7.2)

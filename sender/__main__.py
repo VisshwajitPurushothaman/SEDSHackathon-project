@@ -91,7 +91,7 @@ def run_live(args: argparse.Namespace, onboard: Onboard, sock: socket.socket) ->
         profile = A.load_snapshot(str(ROOT / "config" / "atmosphere_snapshot.json"), raw["atmosphere"]["levels_hpa"], raw["atmosphere"]["blend_m"])
     else:
         profile = A.fetch_profile(cfg, cfg.site.lat_deg, cfg.site.lon_deg)
-    v = Vehicle(cfg, profile, args.scenario, args.seed, args.speed, packet_loss=args.loss)
+    v = Vehicle(cfg, profile, args.scenario, args.seed, args.speed, packet_loss=args.loss, vary=args.vary)
     out = Path(args.out or ROOT / "data" / "vehicle" / f"{v.mission_id}.jsonl")
     out.parent.mkdir(parents=True, exist_ok=True)
     print(f"AERO-FIRE vehicle {v.mission_id}: scenario {args.scenario}, seed {args.seed}, speed {args.speed}x, "
@@ -181,6 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--rate", type=float, default=2.0, help="frames per wall second (raised to one per simulation step when --speed is higher)")
     p.add_argument("--speed", type=float, default=1.0, help="mission seconds per wall second (time compression)")
     p.add_argument("--seed", type=int, default=11)
+    p.add_argument("--vary", action="store_true", help="per-mission truth variability (winds, drag, superheat, payload; config truth_variability)")
     p.add_argument("--atmosphere", choices=["live", "snapshot"], default="live")
     p.add_argument("--loss", type=float, default=None, help="extra random frame loss (default config link.packet_loss)")
     p.add_argument("--commit-at", type=float, default=None, help="vehicle commit (rocket release sequence) at this MET")

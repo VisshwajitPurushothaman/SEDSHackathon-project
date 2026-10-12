@@ -18,6 +18,9 @@ from pathlib import Path
 from typing import Any
 
 from ..ground import profile as PF
+from ..ground.forecast import HORIZONS, state_from_estimates
+from ..ml import features as MLF
+from ..physics import geo
 from ..ground.station import GroundStation
 from ..physics import atmosphere as A
 from ..telemetry import icd
@@ -40,6 +43,11 @@ class GroundSession:
         self._off_flagged: set[str] = set()
         self._range_keys: set[str] = set()
         self._range_src: tuple | None = None
+        self.forecaster = self.preflight_ctx.get("forecaster")
+        self.hybrid = self.preflight_ctx.get("hybrid")
+        self.traj_forecast: dict[str, Any] | None = None  # (self.forecast is the forecast atmosphere)
+        self.forecast_log: list[dict[str, Any]] = []
+        self._forecast_met = -1e9
         self.key, self.genesis = cfg.telemetry.hmac_key_demo, cfg.telemetry.hmac_genesis
         self.dictionary = icd.load_channels()
         self.ground = GroundStation(cfg, forecast, reorder_delay_s=1.0)
@@ -173,6 +181,7 @@ class GroundSession:
                 self._raise(utc, a["severity"], f"ground:{a['id']}", a["title"], a.get("evidence") or {}, source="estimator")
         self._check_limits(utc)
         self._check_range(utc, fr)
+        self._maybe_forecast(met, fr)
         E = fr["estimates"]
         if store:
             self._check_off_nominal(utc, met)
@@ -260,6 +269,50 @@ class GroundSession:
         for k in self._range_keys - keys:
             self.log(utc, "system", "range conflict cleared", {"conflict": k})
         self._range_keys = keys
+
+    def _maybe_forecast(self, met: float, fr: dict[str, Any]) -> None:
+        """Physics trajectory forecast every 5 mission seconds, plus the ML residual correction (hybrid)."""
+        if self.forecaster is None or met - self._forecast_met < 5.0:
+            return
+        phase = fr["vehicle_phase"]
+        st = state_from_estimates(fr["estimates"])
+        if st is None or phase in ("PAD", "LANDED"):
+            return
+        self._forecast_met = met
+        fc = self.forecaster
+        rocket_aboard = fr["rocket_phase"] == "ABOARD"
+        path = fc.path(phase, st["z"], st["vz"], st["east"], st["north"], rocket_aboard, horizon_s=600.0)
+        at_h = fc.at_horizons(path)
+        wind = fc.wind(st["z"])
+        ll = lambda e, n: geo.enu_to_latlon(e, n, self.lat0, self.lon0)  # noqa: E731
+        horizons = {}
+        for h in HORIZONS:
+            p = at_h[h]
+            phys = {"alt": p["z"], "east": p["east"], "north": p["north"]}
+            if st["status"] != "FUSED":
+                res = {"status": "STATE_NOT_FUSED", "delta": None}
+            elif self.hybrid is None:
+                res = {"status": "MISSING_MODEL", "delta": None}
+            else:
+                x = MLF.build(st, phase, met - self._phase_since, p, wind, fc.z_float)
+                res = self.hybrid.correct(phase, x, h)
+            hyb = None
+            if res["delta"]:
+                d = res["delta"]
+                hyb = {"alt": p["z"] + d["z"], "east": p["east"] + d["east"], "north": p["north"] + d["north"]}
+            for v in (phys, hyb):
+                if v:
+                    v["lat"], v["lon"] = ll(v["east"], v["north"])
+            horizons[str(h)] = {"physics": phys, "hybrid": hyb, "status": res["status"],
+                                "out_of_range": res.get("out_of_range"),
+                                "default": bool(self.hybrid and self.hybrid.default_enabled("z", h))}
+            self.forecast_log.append({"met": met, "h": h, "phase": phase, "state": st["status"],
+                                      "persist": [st["z"], st["east"], st["north"]],
+                                      "physics": [phys["alt"], phys["east"], phys["north"]],
+                                      "hybrid": [hyb["alt"], hyb["east"], hyb["north"]] if hyb else None, "status": res["status"]})
+        self.traj_forecast = {"met": met, "phase": phase, "state_status": st["status"], "now": {"alt": st["z"], **dict(zip(("lat", "lon"), ll(st["east"], st["north"])))},
+                         "physics_path": [{"h": q["h"], "alt": q["z"], **dict(zip(("lat", "lon"), ll(q["east"], q["north"])))} for q in path[5::6]],
+                         "horizons": horizons, "label": "PREDICTED"}
 
     def waive(self, check_id: str, operator: str, reason: str, utc: float) -> dict[str, Any]:
         w = {"by": operator, "reason": reason, "utc": utc, "met": self.last_met}
@@ -356,5 +409,5 @@ class GroundSession:
             "utc": now_utc, "met": self.met_now(now_utc), "met_status": "MEASURED" if link["aos"] else "PREDICTED",
             "fc_phase": self.phase(), "link": link, "channels": self.channel_table(now_utc), "ground": self.gframe,
             "alarms": self.alarms[-100:], "active_alarms": sum(1 for a in self.alarms if not a["acknowledged_by"]),
-            "polls": self.polls,
+            "polls": self.polls, "forecast": self.traj_forecast,
         }

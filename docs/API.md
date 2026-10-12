@@ -39,6 +39,15 @@ Nothing here sends to the vehicle.
 | `GET /api/ground/preflight/profile?step=4` | predicted telemetry profile (nominal + band per channel), predicted track, landing footprint, IIPs (illustrative rocket model), range zones and the range check |
 | `POST /api/ground/preflight/{check_id}/waive` | `{"operator", "reason"}` (both required) |
 
+| `GET /api/ground/ml/model` | trajectory forecast model card: version, sklearn, seeds, data hash, test-mission evaluation and decision |
+| `GET /api/ground/ml/report` | `docs/ML_RESULTS.md` (text/markdown) |
+
+Snapshots carry `forecast` (every 5 s MET in flight, status PREDICTED):
+`{met, phase, state_status, now {alt, lat, lon}, physics_path [{h, alt, lat, lon}] to +600 s,
+horizons {"30"|"60"|"120": {physics {alt, lat, lon, east, north}, hybrid {...} | null, status, out_of_range, default}}}`.
+`status` is `OK` (hybrid available) or the fallback reason: `MISSING_MODEL`, `OUT_OF_RANGE`,
+`PHASE_NOT_TRAINED`, `EXCEPTION`, `STATE_NOT_FUSED` (e.g. during LOS); then only physics is shown.
+
 Pre-flight evidence is the pad telemetry (`FC_PHASE == PAD`); it freezes at release. The
 profile is ground physics with the forecast atmosphere (no telemetry). During flight,
 history rows carry `band_<MNEMONIC>_lo/hi`; a channel outside its band for

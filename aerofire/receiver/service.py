@@ -5,6 +5,7 @@ Receive only: no socket here ever sends to the vehicle.
 from __future__ import annotations
 
 import asyncio
+import queue
 import gzip
 import json
 import threading
@@ -16,6 +17,8 @@ from typing import Any, Callable
 import numpy as np
 
 from ..ground import profile as PF
+from ..ground.forecast import PhysicsForecaster
+from ..ml.predictor import HybridPredictor
 from ..ground.predictor import Predictor
 from ..physics import atmosphere as A
 from ..physics import gates as G
@@ -63,7 +66,8 @@ class Receiver:
                                                    cfg.gates.early_burnout_fractions, cfg.gates.approved_area, dt=0.2)]
         self.preflight_ctx = {"profile": prof, "range": rng, "footprint": fp, "iips": iips,
                               "release_point": {"lat": lat, "lon": lon, "alt": e["alt"]},
-                              "range_check": PF.range_check(rng, fp, iips), "iip_model": Rk.LABEL}
+                              "range_check": PF.range_check(rng, fp, iips), "iip_model": Rk.LABEL,
+                              "forecaster": PhysicsForecaster(cfg, fc), "hybrid": HybridPredictor()}
         return self.preflight_ctx
 
     def on_datagram(self, data: bytes, recv_utc: float | None = None) -> str:
@@ -102,15 +106,23 @@ class Receiver:
     # ------------------------------------------------------------------ async runners
 
     async def run_udp(self, host: str, port: int) -> None:
+        """Datagrams are queued by the event loop and processed by a worker thread (the estimator and the
+        forecast are CPU work; the API and WebSocket must stay responsive)."""
         loop = asyncio.get_running_loop()
-        receiver = self
+        inbox: queue.SimpleQueue = queue.SimpleQueue()
 
         class Proto(asyncio.DatagramProtocol):
             def datagram_received(self, data: bytes, addr: Any) -> None:  # noqa: D401
-                receiver.on_datagram(data)
+                inbox.put((data, time.time()))
+
+        def worker() -> None:
+            while True:
+                data, utc = inbox.get()
+                self.on_datagram(data, utc)
 
         self.mode, self.listen = "LIVE UDP", f"udp://{host}:{port}"
         await asyncio.to_thread(self.prepare)
+        threading.Thread(target=worker, name="receiver-worker", daemon=True).start()
         transport, _ = await loop.create_datagram_endpoint(Proto, local_addr=(host, port))
         try:
             await self._ticker()
@@ -119,19 +131,26 @@ class Receiver:
 
     async def run_playback(self, path: str, speed: float = 1.0) -> None:
         """Replay a recorded session on a virtual clock in the recording's own time base (receive times,
-        ages, latency and LOS are as recorded), advanced `speed` times faster than real time."""
+        ages, latency and LOS are as recorded), advanced `speed` times faster than real time. Frames are
+        processed in a worker thread so the API stays responsive."""
         self.mode, self.playback_file = "PLAYBACK", path
         rows = load_session(path)
         await asyncio.to_thread(self.prepare)
-        first, t0 = rows[0]["rx"]["utc"], time.time()
-        self.clock = lambda: first + (time.time() - t0) * speed
+        base = {"first": rows[0]["rx"]["utc"], "t0": time.time()}
+        self.clock = lambda: base["first"] + (time.time() - base["t0"]) * speed
+
+        def play() -> None:
+            for row in rows:
+                delay = (row["rx"]["utc"] - self.clock()) / speed
+                if delay > 0:
+                    time.sleep(delay)
+                elif delay < -0.2:  # processing cannot keep up: slow the virtual clock instead of faking a LOS
+                    base["t0"] -= delay
+                self.on_frame(row, row["rx"]["utc"])
+            self.playback_done = True
+
         ticker = asyncio.create_task(self._ticker())
-        for row in rows:
-            delay = (row["rx"]["utc"] - self.clock()) / speed
-            if delay > 0:
-                await asyncio.sleep(delay)
-            self.on_frame(row, row["rx"]["utc"])
-        self.playback_done = True
+        await asyncio.to_thread(play)
         await ticker
 
     async def _ticker(self) -> None:

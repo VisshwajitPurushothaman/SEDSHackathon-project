@@ -83,6 +83,24 @@ alerts, map) and Post-flight, attaching to missions that already exist.
 - UI: PRE-FLIGHT page (readiness, checks + waive, profile table + band mini-charts, range map
   with MapLibre over an always-drawn lat/lon grid); Flight strip charts show the cyan band.
 
+## Step 5: TRAJECTORY + hybrid physics/ML forecast (done)
+
+- No earlier ML existed (Milestone 6 was never started), so the minimal version was built.
+- Truth variability (simulator only): `config/mission.yaml` `truth_variability` (wind scale/offset,
+  balloon Cd, gas superheat, payload mass; ASSUMPTIONS); `MissionSim(variability=...)`,
+  `python -m sender --vary`. Balloon gained an optional `gas_superheat_k` (default 0 = unchanged).
+- `aerofire/ground/forecast.py`: deterministic physics path (mean of the particle predictor).
+- `aerofire/ml/`: `features.py` + `predictor.py` (runtime, firewalled), offline `make_dataset.py`
+  (130 missions, 77 s; pendulum skipped, IMU only), `train.py` (9 HGB residual models, 99 s),
+  `evaluate.py` -> `docs/ML_RESULTS.md` (test seeds 20000-20029 only). Model committed in `models/`.
+- Result: hybrid beats physics for every target/horizon; altitude @30 s physics 14.5 m -> hybrid
+  about 2 m MAE, improvement CI excludes 0 -> hybrid default. Simulator data only.
+- Session: forecast every 5 s MET (physics to +600 s; hybrid at 30/60/120 s with fallbacks), forecast
+  log for post-flight. Receiver frames are now processed in a worker thread; playback slows its
+  virtual clock instead of faking LOS when processing lags.
+- UI: TRAJECTORY page (map: fused/predicted track, physics + hybrid forecasts, footprint, LOS
+  regions, IIPs, zones; altitude forecast chart; model card + ML toggle + live fallback status).
+
 ## Run
 
 ```bash
@@ -96,10 +114,11 @@ cd frontend && npx tsc -b --noEmit && npx vitest run
 
 ## Status
 
-- Steps 1-4 done (`8c1a303`, `002e8b4`, `399752d`, Step 4 commit). pytest 181 passed; vitest 5;
-  tsc + build pass; console.spec 7 passed.
-- Next exact step: Step 5 TRAJECTORY. Check for an existing `aerofire/ml/` + trained model first
-  (none exists on this branch: Milestone 6 was never started). Then: Laptop A-side dataset with
-  per-mission truth variability (sender/vehicle variability, ASSUMPTION), ground-only features,
-  HistGradientBoosting residual model (30/60/120 s; alt/east/north), docs/ML_RESULTS.md, runtime
-  predictor with fallbacks, firewall rule, TRAJECTORY page (map + forecasts + model card).
+- Steps 1-5 done. pytest: 194 passed + 1 fixed (attribute collision) then the two affected files
+  re-run green; vitest 5; build passes; console.spec 7 passed.
+- Next exact step: Step 6 POST-FLIGHT: progressive recovery from Laptop A `/recover` (every 10th
+  first, HMAC verified, retries, lost list) into the session; three histories (live, RTS
+  reconstruction via existing `rts_smooth`, truth via `/truth` only when grading enabled); reports
+  (limit violations, predicted vs actual, requirements, fault timeline with delays, forecast
+  scorecard from `session.forecast_log`, landing error vs footprint); exports (.jsonl, CSV per
+  subsystem, report JSON + SHA-256) and closure checklist. Reuse ideas from `frontend/src/postflight`.

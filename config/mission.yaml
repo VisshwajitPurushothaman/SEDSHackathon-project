@@ -228,3 +228,12 @@ prediction:
     TANK_P: 3.0               # bar
     TANK_T: 3.0               # degC
     MOTOR_T: 3.0              # degC
+
+truth_variability:
+  # Per-mission differences between the simulated world and what the ground assumes (simulator only:
+  # the ground model never sees these). Used for the ML dataset and `python -m sender --vary`. All [ASSUMPTION].
+  wind_scale: [0.8, 1.2]            # [ASSUMPTION] uniform: truth wind speed / forecast wind speed
+  wind_dir_offset_sigma_deg: 15.0   # [ASSUMPTION] normal: truth wind direction minus forecast direction
+  cd_scale: [0.9, 1.1]              # [ASSUMPTION] uniform: actual balloon drag coefficient / nominal
+  superheat_k: [0.0, 4.0]           # [ASSUMPTION] uniform: lifting gas warmer than ambient, K
+  payload_error_sigma_frac: 0.02    # [ASSUMPTION] normal: envelope + gondola mass error, fraction

@@ -10,3 +10,6 @@ __pycache__/
 # Telemetry recordings (demo sessions under data/demo_sessions/ are committed)
 data/sessions/
 data/vehicle/
+
+# ML dataset (regenerate with python -m aerofire.ml.make_dataset)
+data/ml/

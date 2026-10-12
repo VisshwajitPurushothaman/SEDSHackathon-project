@@ -20,6 +20,11 @@ RULES = {
     "aerofire.receiver": ["aerofire.sim", "aerofire.evaluation", "aerofire.mission_runner", "sender"],
     "aerofire.api.ground": ["aerofire.sim", "aerofire.evaluation", "aerofire.mission_runner", "sender"],
     "aerofire.telemetry.icd": ["aerofire.sim", "aerofire.ground", "sender"],
+    # Runtime ML (ground side). The offline scripts aerofire.ml.make_dataset, aerofire.ml.train and
+    # aerofire.ml.evaluate are exempt: they generate/label training data from truth on purpose.
+    "aerofire.ml.features": ["aerofire.sim", "aerofire.evaluation", "aerofire.mission_runner", "sender"],
+    "aerofire.ml.predictor": ["aerofire.sim", "aerofire.evaluation", "aerofire.mission_runner", "sender"],
+    "aerofire.ground.forecast": ["aerofire.sim", "aerofire.evaluation", "aerofire.mission_runner", "sender"],
 }
 
 

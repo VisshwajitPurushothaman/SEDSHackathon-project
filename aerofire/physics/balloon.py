@@ -46,6 +46,7 @@ class BalloonParams:
     added_mass_coeff: float = 0.5
     leak_dp_pa: float = 5.0
     leak_cd: float = 0.6
+    gas_superheat_k: float = 0.0  # lifting gas warmer than ambient (truth variability only; ground uses 0)
 
 
 @dataclass(frozen=True)
@@ -78,7 +79,7 @@ def gas_volume(m_gas: float, T: float, p: float, R_gas: float) -> float:
 
 def launch_gas_mass(params: BalloonParams, atm0: AtmoSample, free_lift_fraction: float, m_ballast: float) -> float:
     """Helium mass giving free lift = f * gross load * g at launch: (rho_air - rho_He) V = m_load (1 + f)."""
-    rho_he = atm0.p / (params.R_gas * atm0.T)
+    rho_he = atm0.p / (params.R_gas * (atm0.T + params.gas_superheat_k))
     V0 = (params.m_fixed + m_ballast) * (1.0 + free_lift_fraction) / (atm0.rho - rho_he)
     if V0 > params.V_max:
         raise ValueError("launch volume exceeds V_max")
@@ -90,7 +91,7 @@ def float_altitude(params: BalloonParams, atmo: AtmoFn, m_ballast: float, lo: fl
 
     def net(z: float) -> float:
         a = atmo(z)
-        rho_he = a.p / (params.R_gas * a.T)
+        rho_he = a.p / (params.R_gas * (a.T + params.gas_superheat_k))
         return (a.rho - rho_he) * params.V_max - (params.m_fixed + m_ballast)
 
     for _ in range(80):
@@ -105,7 +106,7 @@ def float_altitude(params: BalloonParams, atmo: AtmoFn, m_ballast: float, lo: fl
 def _forces(params: BalloonParams, z: float, vz: float, m_gas: float, m_ballast: float, atmo: AtmoFn) -> tuple[float, AtmoSample, float, float, float, float, float]:
     a = atmo(z)
     g = gravity(z)
-    V = min(gas_volume(m_gas, a.T, a.p, params.R_gas), params.V_max)
+    V = min(gas_volume(m_gas, a.T + params.gas_superheat_k, a.p, params.R_gas), params.V_max)
     r = (3.0 * V / (4.0 * math.pi)) ** (1.0 / 3.0)
     B = a.rho * V * g
     m_load = params.m_fixed + m_ballast
@@ -147,13 +148,13 @@ def step(
     m_gas = s.m_gas
     leak = 0.0
     if leak_area_m2 > 0.0 and m_gas > 0.0:
-        rho_gas = a.p / (params.R_gas * a.T)
+        rho_gas = a.p / (params.R_gas * (a.T + params.gas_superheat_k))
         leak = min(params.leak_cd * leak_area_m2 * math.sqrt(2.0 * rho_gas * params.leak_dp_pa), m_gas / dt)
         m_gas -= leak * dt
 
     # Venting: gas beyond the full volume leaves through the base ducts.
     vent = 0.0
-    m_full = a.p * params.V_max / (params.R_gas * a.T)
+    m_full = a.p * params.V_max / (params.R_gas * (a.T + params.gas_superheat_k))
     if m_gas > m_full:
         vent = (m_gas - m_full) / dt
         m_gas = m_full

@@ -14,7 +14,7 @@ control, see float_control.py.)
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -79,11 +79,34 @@ class TruthFrame:
     events: list[str]
 
 
+def sample_variability(cfg, rng: np.random.Generator) -> dict[str, float]:
+    """One mission's truth variability (config truth_variability, all ASSUMPTIONS)."""
+    tv = cfg.truth_variability
+    return {"wind_scale": float(rng.uniform(*tv.wind_scale)), "wind_dir_offset_deg": float(rng.normal(0.0, tv.wind_dir_offset_sigma_deg)),
+            "cd_scale": float(rng.uniform(*tv.cd_scale)), "superheat_k": float(rng.uniform(*tv.superheat_k)),
+            "payload_error_frac": float(rng.normal(0.0, tv.payload_error_sigma_frac))}
+
+
+def perturbed_atmosphere(at, v: dict[str, float]):
+    """Truth winds = forecast winds scaled and rotated (the forecast is not perfect)."""
+    k, th = v.get("wind_scale", 1.0), math.radians(v.get("wind_dir_offset_deg", 0.0))
+    c, s = math.cos(th), math.sin(th)
+
+    def f(z: float) -> A.AtmoSample:
+        a = at(z)
+        return replace(a, u=k * (c * a.u + s * a.v), v=k * (-s * a.u + c * a.v))
+
+    return f
+
+
 class MissionSim:
-    def __init__(self, cfg, atmosphere: A.AtmosphereProfile, faults: Faults | None = None, seed: int = 0):
+    def __init__(self, cfg, atmosphere: A.AtmosphereProfile, faults: Faults | None = None, seed: int = 0,
+                 variability: dict[str, float] | None = None):
         self.cfg = cfg
         self.prof = atmosphere
-        self.atmo = atmosphere.at
+        # Truth variability (simulator only): the real winds and vehicle differ from what the ground assumes.
+        self.variability = dict(variability or {})
+        self.atmo = perturbed_atmosphere(atmosphere.at, self.variability) if self.variability else atmosphere.at
         self.faults = faults or Faults()
         self.rng = np.random.default_rng(seed)
         self.dt = cfg.sim.dt_s
@@ -96,9 +119,11 @@ class MissionSim:
 
         b, r = cfg.balloon, cfg.rocket
         self.m_rocket = r.m_dry_kg + r.m_prop_kg
-        self.bparams = Bl.BalloonParams(b.m_envelope_kg + b.m_gondola_kg + self.m_rocket, b.V_max_m3, b.Cd,
-                                        R_gas=cfg.constants.R_He, added_mass_coeff=b.added_mass_coeff,
-                                        leak_dp_pa=b.envelope_leak_dp_pa, leak_cd=b.envelope_leak_cd)
+        v = self.variability
+        self.bparams = Bl.BalloonParams((b.m_envelope_kg + b.m_gondola_kg) * (1.0 + v.get("payload_error_frac", 0.0)) + self.m_rocket, b.V_max_m3,
+                                        b.Cd * v.get("cd_scale", 1.0), R_gas=cfg.constants.R_He, added_mass_coeff=b.added_mass_coeff,
+                                        leak_dp_pa=b.envelope_leak_dp_pa, leak_cd=b.envelope_leak_cd,
+                                        gas_superheat_k=v.get("superheat_k", 0.0))
         a0 = self.atmo(self.ground_z)
         self.bstate = Bl.BalloonState(self.ground_z, 0.0, Bl.launch_gas_mass(self.bparams, a0, b.free_lift_fraction, b.m_ballast_kg), b.m_ballast_kg)
         self.bout = Bl.BalloonOutputs(Bl.gas_volume(self.bstate.m_gas, a0.T, a0.p, self.bparams.R_gas), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)

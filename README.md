@@ -83,6 +83,17 @@ Ground-station API: `ws://127.0.0.1:8000/ws/telemetry`, `/api/ground/*`
 (see [docs/API.md](docs/API.md)). Received frames are written to
 `data/sessions/<mission_id>.jsonl`.
 
+## Trajectory forecast model (offline, Laptop A side)
+
+```bash
+python -m aerofire.ml.make_dataset   # 130 simulated missions with truth variability -> data/ml/ (about 1-2 min)
+python -m aerofire.ml.train          # HistGradientBoosting residuals -> models/traj_forecaster_v1.* (about 2 min)
+python -m aerofire.ml.evaluate       # test missions only -> docs/ML_RESULTS.md
+```
+
+The trained model is committed so Laptop B needs no training. `python -m sender --vary` gives a
+live flight its own truth variability (winds, drag, gas superheat, payload mass).
+
 ## Demo flow
 
 - **Pre-flight:** Sealed (0 µm) or a tank puncture. Replay/scrub the received

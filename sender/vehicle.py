@@ -14,7 +14,7 @@ import numpy as np
 
 from aerofire.config import Config
 from aerofire.physics import atmosphere as A
-from aerofire.sim.mission import Faults, MissionSim
+from aerofire.sim.mission import Faults, MissionSim, sample_variability
 from aerofire.telemetry import icd
 from aerofire.telemetry.link import LinkEmulator
 from aerofire.telemetry.sensors import SensorSuite
@@ -45,14 +45,15 @@ BATT_V_FULL, BATT_V_DROP_6H, BATT_V_COLD_PER_K, BATT_V_SIGMA = 12.6, 1.0, 0.004,
 
 class Vehicle:
     def __init__(self, cfg: Config, profile: A.AtmosphereProfile, scenario: str, seed: int, time_scale: float,
-                 packet_loss: float | None = None, mission_id: str | None = None):
+                 packet_loss: float | None = None, mission_id: str | None = None, vary: bool = False):
         faults = dict(SCENARIOS[scenario])
         if packet_loss is not None:
             faults["packet_loss"] = packet_loss
         self.cfg, self.scenario, self.seed, self.time_scale = cfg, scenario, seed, time_scale
         self.faults = Faults.from_dict(faults)
         self.mission_id = mission_id or uuid.uuid4().hex[:12]
-        self.sim = MissionSim(cfg, profile, self.faults, seed=seed)
+        self.variability = sample_variability(cfg, np.random.default_rng(seed + 4)) if vary else {}
+        self.sim = MissionSim(cfg, profile, self.faults, seed=seed, variability=self.variability)
         self.sensors = SensorSuite(cfg, np.random.default_rng(seed + 1), self.faults)
         self.link = LinkEmulator(cfg, self.faults, np.random.default_rng(seed + 2))  # loss, blackout and RSSI model
         self.rng = np.random.default_rng(seed + 3)
@@ -142,6 +143,7 @@ class Vehicle:
     def truth(self) -> dict[str, Any]:
         s = self.sim
         return {"mission_id": self.mission_id, "scenario": self.scenario, "seed": self.seed, "faults": self.faults.to_dict(),
+                "variability": self.variability,
                 "track": self.truth_track, "events": self.events, "actions": self.actions,
                 "landing": {"t": s.t, "lat": s.latlon()[0], "lon": s.latlon()[1]} if s.phase == "LANDED" else None,
                 "rocket": None if s.rocket_result is None else {k: v for k, v in asdict(s.rocket_result).items() if k != "samples"},

@@ -11,6 +11,8 @@
     GET  /api/ground/preflight      checks, readiness, hashed readiness report
     GET  /api/ground/preflight/profile  predicted telemetry profile, range zones, footprint, IIPs
     POST /api/ground/preflight/{check_id}/waive  {"operator", "reason"}
+    GET  /api/ground/ml/model       model card (version, test-mission evaluation, decision)
+    GET  /api/ground/ml/report      docs/ML_RESULTS.md (text/markdown)
 
 Nothing here can send to the vehicle.
 """
@@ -201,3 +203,23 @@ def waive(check_id: str, body: WaiverIn) -> dict[str, Any]:
         if check_id not in ids:
             raise HTTPException(404, "unknown check")
         return s.waive(check_id, body.operator.strip(), body.reason.strip(), _now())
+
+
+# ------------------------------------------------------------------ ML forecast
+
+
+@router.get("/api/ground/ml/model")
+async def ml_model() -> dict[str, Any]:
+    ctx = await asyncio.to_thread(_ctx)
+    h = ctx.get("hybrid")
+    return h.summary() if h is not None else {"available": False}
+
+
+@router.get("/api/ground/ml/report")
+def ml_report():
+    from fastapi.responses import PlainTextResponse
+
+    path = ROOT / "docs" / "ML_RESULTS.md"
+    if not path.exists():
+        raise HTTPException(404, "no ML results yet: run python -m aerofire.ml.evaluate")
+    return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/markdown")
