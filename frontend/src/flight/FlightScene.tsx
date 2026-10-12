@@ -11,6 +11,7 @@ import { Html, Line } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { usePageVisible, useReducedMotionPref } from '../hooks/useMissionRuntime';
 import { ParticleField, type Spawn } from '../scene/Particles';
 import { scene as sc, ui } from '../theme/tokens';
 import type { GroundFrame, Region } from './api';
@@ -101,7 +102,7 @@ function Ground({ lat0, lon0, area }: { lat0: number; lon0: number; area: [numbe
           )}
         </group>
       ))}
-      <Line points={areaPts} color={ui.pass} lineWidth={1.5} dashed dashSize={20} gapSize={12} />
+      {areaPts.length > 1 && <Line points={areaPts} color={ui.pass} lineWidth={1.5} dashed dashSize={20} gapSize={12} />}
       <mesh position={[0, 3, 0]}>
         <cylinderGeometry args={[1.5, 1.5, 6, 16]} />
         <meshStandardMaterial color={ui.text} emissive={ui.text} emissiveIntensity={0.4} />
@@ -277,7 +278,7 @@ function RocketTrack({ frames, cursor, azimuth }: { frames: GroundFrame[]; curso
   );
 }
 
-function CameraRig({ frame, mode }: { frame: GroundFrame | null; mode: CameraMode }) {
+function CameraRig({ frame, mode, reduced }: { frame: GroundFrame | null; mode: CameraMode; reduced: boolean }) {
   const { camera } = useThree();
   const look = useRef(new THREE.Vector3());
   const offset = useRef(new THREE.Vector3(-14, 4, 18));
@@ -285,7 +286,7 @@ function CameraRig({ frame, mode }: { frame: GroundFrame | null; mode: CameraMod
     const target = frame && shown.ok ? shown.pos : new THREE.Vector3(0, 0, 0);
     // The offset (mode change) eases; the target itself is followed without lag.
     const wantOffset = mode === 'chase' ? new THREE.Vector3(-14, 4, 18) : mode === 'top' ? new THREE.Vector3(0.01, 160, 0.01) : null;
-    const k = Math.min(1, dt * 3);
+    const k = reduced ? 1 : Math.min(1, dt * 3);
     if (wantOffset) {
       offset.current.lerp(wantOffset, k);
       camera.position.copy(target).add(offset.current);
@@ -317,6 +318,8 @@ function SkyTint({ frame }: { frame: GroundFrame | null }) {
 }
 
 export default function FlightScene({ frame }: { frame: GroundFrame | null }) {
+  const visible = usePageVisible();
+  const reduced = useReducedMotionPref();
   const frames = useFlight((s) => s.frames);
   const cursor = useFlight((s) => s.cursor);
   const mode = useFlight((s) => s.camera);
@@ -325,7 +328,7 @@ export default function FlightScene({ frame }: { frame: GroundFrame | null }) {
   const lon0 = config?.site.lon_deg ?? 80.23;
   const E = frame?.estimates;
   return (
-    <Canvas dpr={[1, 1.75]} camera={{ fov: 45, near: 0.1, far: 20000, position: [-30, 10, 40] }} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+    <Canvas frameloop={visible ? 'always' : 'never'} dpr={[1, 1.75]} camera={{ fov: 45, near: 0.1, far: 20000, position: [-30, 10, 40] }} gl={{ antialias: true, powerPreference: 'high-performance' }}>
       <SkyTint frame={frame} />
       <ambientLight intensity={0.5} />
       <directionalLight position={[300, 500, 200]} intensity={1.6} color={sc.keyLight} />
@@ -345,7 +348,7 @@ export default function FlightScene({ frame }: { frame: GroundFrame | null }) {
         );
       })}
       <RocketTrack frames={frames} cursor={cursor} azimuth={config?.rocket.rail_azimuth_deg ?? 90} />
-      <CameraRig frame={frame} mode={mode} />
+      <CameraRig frame={frame} mode={mode} reduced={reduced} />
     </Canvas>
   );
 }

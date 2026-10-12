@@ -259,3 +259,58 @@ All five gates must pass continuously for 10 s before `GO_RECOMMENDED`.
 - Every record is HMAC-verified against its predecessor, then the whole chain is verified from genesis.
 - Post-flight requirements (config `requirements`) evaluate to PASS / FAIL / NOT TESTED / INCONCLUSIVE with evidence. They are computed **without truth**, from the reconstruction and the recovered records. The gate audit (REQ-GATE-1) uses exactly the live gate definitions; an earlier version checked the instantaneous rather than the mean vertical speed and reported a false violation.
 - The grading scorecard (`evaluation/scorecard.py`) is the only code that compares with truth. It is served only when `api.truth_enabled`.
+
+## 14. Estimator and integrity equations
+
+For each ENU axis, constant-velocity propagation uses
+`F = [[1, dt], [0, 1]]` and white-acceleration process covariance
+`Q = q [[dt³/3, dt²/2], [dt²/2, dt]]`. The six-state covariance combines three
+such blocks, with phase-aware horizontal/vertical `q` from config.
+
+Prediction: `x⁻ = F x`, `P⁻ = F P Fᵀ + Q`. A measurement has innovation
+`y = z − H x⁻`, innovation covariance `S = H P⁻ Hᵀ + R`, and test
+`NIS = yᵀ S⁻¹ y` against the configured chi-square quantile. Accepted updates use
+`K = P⁻ Hᵀ S⁻¹`, `x = x⁻ + K y`, `P = (I − K H) P⁻`, symmetrized numerically.
+The integrity ladder, pairwise agreement, divergence reset and ambiguous-drift
+variance floor are described in section 11; this is not plain unguarded fusion.
+
+RTS smoothing uses `Cₖ = Pₖ Fₖᵀ (P⁻ₖ₊₁)⁻¹`,
+`xˢₖ = xₖ + Cₖ (xˢₖ₊₁ − x⁻ₖ₊₁)` and
+`Pˢₖ = Pₖ + Cₖ (Pˢₖ₊₁ − P⁻ₖ₊₁) Cₖᵀ`. Filter resets inflate the stored
+prediction covariance so the backward pass does not assume an unbroken dynamic
+link. The output status is RECONSTRUCTED, distinct from live FUSED estimates.
+
+An ensemble ellipse is fitted to horizontal mean `μ` and covariance `Σ`:
+`(p − μ)ᵀ Σ⁻¹ (p − μ) ≤ χ²₂(level)`. The 50/90/99 % thresholds are
+1.386294/4.605170/9.210340. These are Gaussian-fit claims, not guarantees for
+arbitrary non-Gaussian trajectories. Correlated blackout samples remain labelled
+as such in requirement evidence.
+
+## 15. Visual emitter contract
+
+The Flight scene preserves the measurement/truth boundary:
+
+| Effect | Operator field and condition | Location |
+|---|---|---|
+| Balloon expansion | MEASURED balloon volume; radius `(3V/(4π))^(1/3)` | Balloon, drawn ×20 with “not to scale” label |
+| Normal gas venting | FUSED `balloon_venting`, derived from measured duct flow > 3σ; not after cut-down | Base duct of balloon; intensity follows measured rate |
+| Tank leak | Ground detector `tank_leak_detected`; rocket still aboard; size label from estimated diameter | Pressurant tank |
+| Envelope leak | No operator-side leak-rate field is supplied | No jet is invented from hidden truth |
+| Rocket motion | Existing rocket telemetry/model estimates after operator commit | Existing illustrative rocket track |
+
+Tank pressure alone never turns on a jet. Pre-flight retains its original
+procedural preview and detector-driven tank emitter; its ignition is the labelled
+local operator animation, not a Flight API commit. Hidden rendering and reduced
+camera motion do not alter the underlying simulation or gate calculation.
+
+## References
+
+- [US Standard Atmosphere 1976, NOAA/NASA/USAF](https://ntrs.nasa.gov/api/citations/19770009539/downloads/19770009539.pdf): layer bases, geopotential conversion and gravity (NOAA-S/T 76-1562, NASA-TM-X-74335).
+- [Open-Meteo forecast documentation](https://open-meteo.com/en/docs): pressure-level temperature, wind and geopotential-height fields, units and time coordinates.
+- [NASA Glenn mass-flow derivation](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/mass-flow-rate/): compressible-flow/choking basis. The virial correction used here remains an approximation.
+- Dymond et al., *Virial Coefficients of Pure Gases*, Landolt-Börnstein IV/21A (2002): existing assumed helium coefficient near 300 K; no REFPROP cross-check was performed.
+- Kalman, *A New Approach to Linear Filtering and Prediction Problems* (1960); Rauch, Tung and Striebel, *Maximum likelihood estimates of linear dynamic systems* (1965): filtering and fixed-interval smoothing equations.
+- WGS84 constants: NIMA TR8350.2. Pendulum, drag, buoyancy and lumped-energy balances are the standard equations stated above; empirical coefficients are tagged as assumptions rather than attributed to a measurement.
+
+Historical Monte Carlo findings above are retained as Claude's recorded evidence;
+the current executed suite and performance checks are listed in VERIFICATION.md.

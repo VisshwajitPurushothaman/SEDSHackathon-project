@@ -5,7 +5,7 @@
  */
 import { create } from 'zustand';
 import { API_URL } from '../api/client';
-import { missionsApi, streamMission, type EventLogEntry, type Faults, type GroundFrame, type MissionSummary } from './api';
+import { missionsApi, streamMission, type Alert, type EventLogEntry, type Faults, type GroundFrame, type MissionSummary } from './api';
 
 export type CameraMode = 'chase' | 'ground' | 'top';
 
@@ -63,6 +63,8 @@ interface FlightState {
   operator: string;
   camera: CameraMode;
   events: EventLogEntry[];
+  /** Server-confirmed acknowledgements: shown even when no later frame arrives (e.g. after landing). */
+  acks: Record<number, Alert>;
   presetId: string;
   timeScale: number;
 
@@ -99,6 +101,7 @@ export const useFlight = create<FlightState>((set, get) => ({
   operator: readOperator(),
   camera: 'chase',
   events: [],
+  acks: {},
   presetId: 'nominal',
   timeScale: 60,
 
@@ -139,7 +142,7 @@ export const useFlight = create<FlightState>((set, get) => ({
 
   attach: (id) => {
     get().detach();
-    set({ missionId: id, frames: [], cursor: 0, live: true, playing: false, ended: false, streamNote: null, events: [] });
+    set({ missionId: id, frames: [], cursor: 0, live: true, playing: false, ended: false, streamNote: null, events: [], acks: {} });
     // Frames can arrive faster than React should render: buffer and apply once per animation frame.
     let pending: GroundFrame[] = [];
     let scheduled = false;
@@ -229,7 +232,8 @@ export const useFlight = create<FlightState>((set, get) => ({
       return;
     }
     try {
-      await missionsApi.ack(missionId, alertId, operator);
+      const acked = await missionsApi.ack(missionId, alertId, operator);
+      if (get().missionId === missionId) set((st) => ({ acks: { ...st.acks, [alertId]: acked } }));
     } catch (e) {
       set({ error: `acknowledge refused: ${(e as Error).message}` });
     }

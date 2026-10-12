@@ -133,3 +133,21 @@ def test_rssi_falls_with_range():
     far = np.mean([link.rssi(0.0, 0.0, 100_000.0) for _ in range(200)])
     assert near - far == pytest.approx(40.0, abs=1.0)  # 100x range = 40 dB free-space loss
     assert fspl_db(1000.0, 2400.0) == pytest.approx(100.04, abs=0.05)
+
+
+def test_stale_link_latency_is_unknown_then_restored_by_a_new_packet():
+    from aerofire.ground.station import GroundStation
+    from aerofire.physics.atmosphere import AtmosphereProfile
+
+    ground = GroundStation(CFG, AtmosphereProfile())
+    packet = {"sensor_id": "fc", "event_time": 0.0, "values": {"phase": "PAD"},
+              "rx": {"rssi_dbm": -70.0, "arrival_time": 0.4}}
+    ground.ingest(packet)
+    fresh = ground.frame(1.0)["estimates"]["link_latency"]
+    assert fresh["status"] == "MEASURED" and fresh["value"] == pytest.approx(0.4)
+    stale = ground.frame(30.0)["estimates"]["link_latency"]
+    assert stale["status"] == "UNKNOWN" and stale["value"] is None
+    assert stale["last_value"] == pytest.approx(0.4) and stale["age_s"] > CFG.estimator.stale_after_s
+    ground.ingest(dict(packet, event_time=30.0, rx={"rssi_dbm": -71.0, "arrival_time": 30.4}))
+    restored = ground.frame(31.0)["estimates"]["link_latency"]
+    assert restored["status"] == "MEASURED" and restored["value"] == pytest.approx(0.4)

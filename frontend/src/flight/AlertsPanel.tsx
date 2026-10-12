@@ -31,8 +31,9 @@ function Evidence({ ev }: { ev: Record<string, unknown> }) {
 export function AlertsPanel({ frame }: { frame: GroundFrame | null }) {
   const ack = useFlight((s) => s.ack);
   const operator = useFlight((s) => s.operator);
+  const acks = useFlight((s) => s.acks);
   const [open, setOpen] = useState<number | null>(null);
-  const alerts = frame ? [...frame.alerts].reverse() : [];
+  const alerts = frame ? [...frame.alerts].reverse().map((a) => (!a.acknowledged_by && acks[a.id] ? { ...a, ...acks[a.id] } : a)) : [];
   const unacked = alerts.filter((a) => !a.acknowledged_by).length;
   return (
     <section className="panel flex min-h-0 flex-1 flex-col" aria-labelledby="alerts-title">

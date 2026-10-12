@@ -6,6 +6,16 @@ Every operator command needs `"operator": "<name>"` (1–64 characters) and is w
 
 Status codes: `404` unknown mission or item, `409` command not allowed now (with the reason), `422` invalid input (for example a missing operator name).
 
+Interactive schemas/examples: `GET /docs`; machine-readable schema: `GET /openapi.json`.
+Missions are in memory in this single backend process; export before restarting.
+
+PowerShell example (recorded weather, no weather network request):
+```powershell
+$mission = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/missions -ContentType application/json -Body '{"name":"nominal demo","seed":11,"atmosphere":"snapshot","time_scale":60}'
+$missionId = $mission.mission_id
+Invoke-RestMethod "http://127.0.0.1:8000/api/missions/$missionId/frame"
+```
+
 ---
 
 ## Health and legacy pre-flight endpoints
@@ -16,6 +26,11 @@ These are kept for the pre-flight console. They now run on the new physics and r
 ```json
 {"status": "AERO-FIRE Backend Operational"}
 ```
+
+### `GET /api/config`
+Public site, gate limits/approved area, qualified motor minimum, balloon volume,
+tank fill, rail geometry/model label, link station, API defaults and vent sensor
+noise. This contains no state trajectory or hidden physical truth.
 
 ### `POST /api/simulate`
 Runs pad → ascent → float until the first GO or ABORT recommendation and returns everything at once.
@@ -87,7 +102,10 @@ The latest ground frame. This is the same object the stream carries:
 - During a blackout, position is `PREDICTED` and `estimates.prediction` carries the 50/90/99 % regions.
 
 ### `GET /api/missions/{id}/stream`
-SSE of ground frames (one every 5 mission seconds, plus every change of phase, recommendation, alerts or operator state).
+SSE of ground frames (period `max(5, time_scale / 8)` mission seconds for positive
+time scales, plus every change of phase, recommendation, alert count, prediction
+or operator state). This limits ordinary updates to about eight per wall second
+at high time scales. Phase events can add frames above that ordinary rate.
 - Each event has `id: <frame id>`.
 - Reconnect with the `Last-Event-ID` header (or `?from=<id>`) to resume after that frame.
 - When the mission finishes, the server sends `event: end`; the client must close then, or `EventSource` would reconnect.
@@ -137,9 +155,32 @@ Available after the mission has finished. Returns:
 - `operator_track`, `reconstruction` (RTS smoother, `RECONSTRUCTED`), `prediction_log`, `footprint_at_cutdown`, `landing_fix`, `closure`, `event_log`;
 - in grading mode only: `scorecard` and `truth_track`.
 
+`?tracks=false` omits the three large history arrays while still computing
+requirements. `grading` indicates whether evaluator data is enabled for that
+mission. The operator view hides injected-only rows until reveal; disabled
+grading serves detected faults only. A failed requirement is a mission outcome,
+not an API error. Run recovery for complete reconstruction evidence.
+
 ### `GET /api/missions/{id}/export?format=json|csv`
-- **json:** `{mission, records, report, report_sha256}`. `report_sha256` = SHA-256 of the report's canonical JSON (sorted keys, compact). The export never contains truth.
+- **json:** `{mission, records, report, report_sha256}`. `report_sha256` = SHA-256 of the report's canonical JSON (sorted keys, compact). The export never contains evaluator truth: grading histories/scorecard, injected-only faults, injection settings and creation-event injection details are redacted; the internal event log is preserved. `mission.faults` is an empty object in exports.
 - **csv:** long format, `seq,event_time,sensor_id,source,status,received_live,field,value,unit`.
 
 ### `GET /api/missions/{id}/truth`
 **Evaluator only.** Returns simulator truth (track, events, rocket result, landing). `403` unless `api.truth_enabled` is true in config.
+
+The configuration gate authorizes local grading; it is not authentication. The
+Post-flight reveal toggle is a display control. Set `api.truth_enabled: false`
+for an operator-only mission configuration. No API call actuates real hardware.
+
+### Verify an exported report
+
+Use the untouched downloaded JSON; do not parse/stringify it in a browser before
+saving, because doing so changes floating-point number representations.
+
+```python
+import hashlib, json
+with open("mission.json", encoding="utf-8") as stream:
+    export = json.load(stream)
+canonical = json.dumps(export["report"], sort_keys=True, separators=(",", ":"), default=str)
+assert hashlib.sha256(canonical.encode("utf-8")).hexdigest() == export["report_sha256"]
+```

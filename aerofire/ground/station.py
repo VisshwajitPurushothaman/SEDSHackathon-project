@@ -345,12 +345,16 @@ class GroundStation:
         return E
 
     def _link_estimates(self, now: float, E: dict[str, Any]) -> None:
+        fresh = self.last_rx_wall is not None and now - self.last_rx_wall <= self.stale_s
         if self.rssi:
-            fresh = self.last_rx_wall is not None and now - self.last_rx_wall <= self.stale_s
             E["link_rssi"] = est(float(np.mean(self.rssi)) if fresh else None, "dBm", Status.MEASURED if fresh else Status.UNKNOWN,
                                  None, "receiver, mean of last 20 packets")
         if self.latencies:
-            E["link_latency"] = est(float(np.mean(self.latencies)), "s", Status.MEASURED, None, "arrival - event time, last 50 packets")
+            latency = float(np.mean(self.latencies))
+            E["link_latency"] = est(latency if fresh else None, "s", Status.MEASURED if fresh else Status.UNKNOWN,
+                                     None, "arrival - event time, last 50 packets", now - self.last_rx_wall)
+            if not fresh:
+                E["link_latency"]["last_value"] = latency
         if self.max_seq >= 0:
             lo = max(0, self.max_seq - 999)
             window = self.max_seq - lo + 1
