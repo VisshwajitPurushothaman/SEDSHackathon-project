@@ -305,8 +305,6 @@ export const groundApi = {
   ack: (id: number, operator: string) => post(`/api/ground/alarms/${id}/ack`, { operator }).then((r) => json<Alarm>(r)),
   poll: (operator: string, vote: 'GO' | 'NO_GO', note: string) => post('/api/ground/poll', { operator, vote, note }).then((r) => json<Poll>(r)),
   digitalTwin: () => fetch(`${API_URL}/api/ground/digital-twin`).then((r) => json<{ status: DigitalTwinStatus; telemetry: DigitalTwinTelemetry }>(r)),
-  injectDigitalTwin: (payload: Partial<DigitalTwinTelemetry>) => post('/api/ground/digital-twin/inject', payload).then((r) => json<DigitalTwinTelemetry>(r)),
-  resetDigitalTwin: () => post('/api/ground/digital-twin/reset', {}).then((r) => json<DigitalTwinTelemetry>(r)),
 };
 
 export const wsUrl = (hz = 4) => `${API_URL.replace(/^http/, 'ws')}/ws/telemetry?hz=${hz}`;

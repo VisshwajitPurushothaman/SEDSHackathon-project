@@ -41,7 +41,7 @@ from ..physics import atmosphere as A
 from ..receiver import postflight as POST
 from ..receiver import preflight as PRE
 from ..receiver.service import Receiver
-from ..receiver.tcp_receiver import GLOBAL_TCP_RECEIVER, SAMPLE_TELEMETRY
+from ..receiver.tcp_receiver import GLOBAL_TCP_RECEIVER
 from ..telemetry import icd
 
 router = APIRouter()
@@ -156,9 +156,10 @@ def snapshot() -> dict[str, Any]:
         tcp_stat = GLOBAL_TCP_RECEIVER.get_status()
         tcp_dt = GLOBAL_TCP_RECEIVER.latest_telemetry
         if RECEIVER.current is None:
-            is_active = tcp_stat.get("packets_received", 0) > 0
-            ts_ms = tcp_dt.get("timestamp_ms", 0) if tcp_dt else 0
-            met_val = round(ts_ms / 1000.0, 2) if is_active else 0
+            flt = tcp_stat.get("filter") or {}
+            age = flt.get("last_accept_age_s")
+            is_active = tcp_dt is not None and age is not None and age <= 3.0
+            met_val = flt.get("last_met_s") or 0
             snap = base | {
                 "mission_id": "SBRL-MISSION-LIVE-01" if is_active else None,
                 "source": "LIVE TCP (65432)" if is_active else RECEIVER.mode,
@@ -166,12 +167,13 @@ def snapshot() -> dict[str, Any]:
                 "met": met_val,
                 "link": {
                     "aos": is_active,
-                    "rate_hz": 2.0 if is_active else 0.0,
-                    "loss_pct": 0.0 if is_active else 100.0,
-                    "last_frame_age_s": tcp_stat.get("last_frame_age_s"),
-                    "frames_received": tcp_stat.get("packets_received", 0),
+                    "rate_hz": flt.get("rate_hz"),
+                    "loss_pct": None,  # needs the slot accounting of the full pipeline (item 2)
+                    "last_frame_age_s": age,
+                    "frames_received": flt.get("accepted", 0),
+                    "rejected": flt.get("rejected"),
                 },
-                "channels": _generate_channels_from_tcp(tcp_dt, met_val) if is_active else [],
+                "channels": _generate_channels_from_tcp(tcp_dt, met_val) if tcp_dt is not None else [],
             }
         else:
             snap = base | RECEIVER.current.snapshot(_now())
@@ -582,15 +584,5 @@ def digital_twin_state() -> dict[str, Any]:
     return GLOBAL_TCP_RECEIVER.get_snapshot()
 
 
-@router.post("/api/ground/digital-twin/inject")
-def inject_digital_twin_telemetry(payload: dict[str, Any]) -> dict[str, Any]:
-    """Inject a digital twin frame (for testing or simulation playback)."""
-    return GLOBAL_TCP_RECEIVER.inject_frame(payload)
 
-
-@router.post("/api/ground/digital-twin/reset")
-def reset_digital_twin_telemetry() -> dict[str, Any]:
-    """Reset digital twin telemetry to default baseline sample."""
-    import copy
-    return GLOBAL_TCP_RECEIVER.inject_frame(copy.deepcopy(SAMPLE_TELEMETRY))
 

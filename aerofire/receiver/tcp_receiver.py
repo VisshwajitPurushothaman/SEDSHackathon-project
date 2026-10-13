@@ -13,6 +13,8 @@ import copy
 import json
 import logging
 import math
+import os
+from pathlib import Path
 import socket
 import struct
 import threading
@@ -20,123 +22,9 @@ import time
 from collections import deque
 from typing import Any, Callable
 
+from .twin import TwinFilter
+
 logger = logging.getLogger("aerofire.tcp_receiver")
-
-SAMPLE_TELEMETRY: dict[str, Any] = {
-    "event": "device_handshake",
-    "device_id": "client_node_01",
-    "timestamp_ms": 5406250,
-    "simulation_state": {
-        "status": "RUNNING",
-        "is_running": True,
-        "is_paused": False,
-        "is_resumed": False,
-        "is_pinging": True,
-        "last_action": "STARTED",
-        "pause_count": 0,
-        "resume_count": 0,
-        "last_pause_timestamp_ms": None,
-        "last_resume_timestamp_ms": None,
-        "pause_resume_events": [
-            {
-                "action": "STARTED",
-                "mission_time_ms": 0,
-                "iso_time": "2026-10-12T22:58:59.354Z",
-            },
-            {
-                "action": "PING_STARTED",
-                "mission_time_ms": 0,
-                "iso_time": "2026-10-12T22:58:59.354Z",
-            },
-        ],
-    },
-    "tcp_socket_stream": {
-        "server_ip": "172.16.59.95",
-        "port": 65432,
-        "ping_interval_seconds": 0.5,
-        "is_pinging": True,
-        "protocol": "4-byte Big-Endian uint32 (!I) length header + UTF-8 JSON",
-        "packets_dispatched": 8048,
-        "socket_status": "PINGING_0.5S",
-        "last_server_ack": {
-            "status": "success",
-            "received_bytes": 4626,
-        },
-    },
-    "flight_phase": "LEO_ORBIT",
-    "staging_sub_phase": "ATTACHED_TO_GONDOLA",
-    "gnss_coordinates": {
-        "origin_reference": "LAUNCH_PAD_ORIGIN [0, 0, 0]",
-        "position_from_origin_xyz_m": [
-            17977957.79,
-            214211.16,
-            -16501.18,
-        ],
-        "x_downrange_m": 17977957.79,
-        "y_altitude_m": 214211.16,
-        "z_crossrange_m": -16501.18,
-        "slant_range_3d_m": 17979241.51,
-        "geodetic_wgs84": {
-            "lat_deg": 36.951768,
-            "lon_deg": 195.751025,
-            "alt_m": 214211.16,
-        },
-        "status": "NOMINAL",
-    },
-    "orbital_and_aerothermal_physics": {
-        "specific_orbital_energy_mj_kg": -30.307,
-        "specific_angular_momentum_m2_s": 51197977292,
-        "eccentricity": 0.0014,
-        "semi_major_axis_km": 6576.1,
-        "apoapsis_km": 214,
-        "periapsis_km": 196,
-        "remaining_delta_v_mps": 0,
-        "dynamic_pressure_q_pa": 43073.66,
-        "max_q_pa": 43794.04,
-        "aerodynamic_heat_flux_wm2": 334884392.5,
-        "mach_number": 23.57,
-        "membrane_hoop_stress_mpa": 2290.73,
-        "differential_superpressure_pa": 1156.01,
-    },
-    "barometric_sensor": {
-        "pressure_hpa": 1.11,
-        "derived_altitude_m": 46968,
-        "status": "NOMINAL",
-    },
-    "imu_sensor": {
-        "accel_mps2": [
-            -0.017,
-            0.014,
-            9.788,
-        ],
-        "gyro_dps": [
-            0.023,
-            0,
-            -0.004,
-        ],
-        "attitude_rpy_deg": [
-            0,
-            0,
-            0,
-        ],
-        "status": "NOMINAL",
-    },
-    "environmental_sensors": {
-        "ambient_temp_c": -2.5,
-        "relative_humidity_pct": 0.1,
-        "effective_wind_vector_mps": [
-            0,
-            0,
-            0,
-        ],
-    },
-    "payload_state": {
-        "is_attached": False,
-        "balloon_volume_m3": 880000,
-        "thrust_n": 0,
-    },
-}
-
 
 def receive_exact(conn: socket.socket, num_bytes: int) -> bytes | None:
     """Ensure exactly num_bytes are read from the TCP stream."""
@@ -213,9 +101,11 @@ class TcpReceiver:
         self.last_ack: dict[str, Any] | None = None
         self.active_clients = 0
 
-        # Latest received telemetry frame initialized to sample template
-        self.latest_telemetry: dict[str, Any] = copy.deepcopy(SAMPLE_TELEMETRY)
+        # Latest ACCEPTED packet (None until one arrives: no fixture is ever shown as live)
+        self.latest_telemetry: dict[str, Any] | None = None
         self.has_received_live = False
+        self.filter = TwinFilter(allowed_source=os.environ.get("AEROFIRE_TWIN_SOURCE") or None)
+        self.rejected_log = Path(__file__).resolve().parents[2] / "data" / "sessions" / "twin_rejected.jsonl"
 
         # Rolling history of packets for strip charts and trajectory
         self.history: deque[dict[str, Any]] = deque(maxlen=3000)
@@ -239,25 +129,6 @@ class TcpReceiver:
                 except Exception:
                     pass
                 self._server_sock = None
-
-    def inject_frame(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Manually inject a telemetry frame (e.g. from UI testing or simulated feed)."""
-        with self.lock:
-            self.packets_received += 1
-            self.last_received_utc = time.time()
-            self.latest_telemetry = copy.deepcopy(data)
-            self.has_received_live = True
-            self.history.append({
-                "recv_utc": self.last_received_utc,
-                "data": self.latest_telemetry,
-                "source": "INJECTED",
-            })
-            if self.on_frame_cb:
-                try:
-                    self.on_frame_cb(self.latest_telemetry)
-                except Exception as ex:
-                    logger.warning("Error in on_frame_cb: %s", ex)
-            return self.latest_telemetry
 
     def _handle_client(self, conn: socket.socket, addr: tuple[str, int]) -> None:
         client_str = f"{addr[0]}:{addr[1]}"
@@ -290,80 +161,23 @@ class TcpReceiver:
                         data["is_prediction_active"] = True
 
                     with self.lock:
-                        # Extract gnss coordinates and altitude
-                        gnss_in = data.get("gnss_coordinates") or {}
-                        wgs_in = gnss_in.get("geodetic_wgs84") or {}
-                        inc_alt = float(wgs_in.get("alt_m") or gnss_in.get("y_altitude_m") or 0.0)
-                        inc_phase = data.get("flight_phase", "")
-
-                        curr_gnss = self.latest_telemetry.get("gnss_coordinates") or {}
-                        curr_wgs = curr_gnss.get("geodetic_wgs84") or {}
-                        curr_alt = float(curr_wgs.get("alt_m") or curr_gnss.get("y_altitude_m") or 0.0)
-
-                        # Prevent fluctuating back to default values between pings:
-                        # If active flight state exists (curr_alt > 50) and incoming packet has near-zero altitude
-                        # (e.g. from concurrent prelaunch or empty handshake), retain the gained flight coordinates
-                        if curr_alt > 50.0 and inc_alt <= 20.0:
-                            merged = copy.deepcopy(self.latest_telemetry)
-                            merged["timestamp_ms"] = data.get("timestamp_ms", merged.get("timestamp_ms", 0))
-                            merged["ping_paused"] = data["ping_paused"]
-                            if "is_prediction_active" in data:
-                                merged["is_prediction_active"] = data["is_prediction_active"]
-                            if "tcp_socket_stream" in data:
-                                merged["tcp_socket_stream"] = data["tcp_socket_stream"]
-                            data = merged
-                        else:
-                            # Re-compute high-precision geodetic fix relative to Point Calimere Bird Sanctuary (Tamil Nadu)
-                            # Pad Origin: Lat 10.301500° N, Lon 79.851200° E, Alt 2.0 m
-                            # WGS-84 curvature: M_lat = 110609.6 m/deg, N_lon = 109531.0 m/deg
-                            pos_xyz = gnss_in.get("position_from_origin_xyz_m") or [0.0, 0.0, 0.0]
-                            x_m = float(gnss_in.get("x_downrange_m") if "x_downrange_m" in gnss_in else pos_xyz[0])
-                            y_m = float(gnss_in.get("y_altitude_m") if "y_altitude_m" in gnss_in else (pos_xyz[1] if len(pos_xyz) > 1 else inc_alt))
-                            z_m = float(gnss_in.get("z_crossrange_m") if "z_crossrange_m" in gnss_in else (pos_xyz[2] if len(pos_xyz) > 2 else 0.0))
-
-                            slant_3d = math.hypot(x_m, y_m, z_m)
-                            calc_lat = round(10.301500 + (z_m / 110609.6), 6)
-                            calc_lon = round(79.851200 + (x_m / 109531.0), 6)
-                            calc_alt = round(2.0 + y_m, 2)
-
-                            data["gnss_coordinates"] = {
-                                "origin_reference": "POINT_CALIMERE_BIRD_SANCTUARY [0, 0, 0]",
-                                "position_from_origin_xyz_m": [round(x_m, 2), round(y_m, 2), round(z_m, 2)],
-                                "x_downrange_m": round(x_m, 2),
-                                "y_altitude_m": round(y_m, 2),
-                                "z_crossrange_m": round(z_m, 2),
-                                "slant_range_3d_m": round(slant_3d, 2),
-                                "geodetic_wgs84": {
-                                    "lat_deg": calc_lat,
-                                    "lon_deg": calc_lon,
-                                    "alt_m": calc_alt,
-                                },
-                                "status": "NOMINAL",
-                            }
-
+                        ok, reason = self.filter.offer(data, addr[0], recv_utc)
                         self.packets_received += 1
                         self.bytes_received += payload_len + 4
                         self.last_received_utc = recv_utc
                         self.last_payload_len = payload_len
                         self.last_ack = ack_obj
-                        self.latest_telemetry = data
-                        self.has_received_live = True
-                        self.history.append({
-                            "recv_utc": recv_utc,
-                            "data": data,
-                            "source": client_str,
-                        })
+                        if ok:
+                            self.latest_telemetry = data
+                            self.has_received_live = True
+                            self.history.append({"recv_utc": recv_utc, "data": data, "source": client_str})
+                        else:
+                            self._log_rejected(data, client_str, recv_utc, reason)
 
                     # Log each ping prominently
-                    print(
-                        f"[{time.strftime('%H:%M:%S')}] TCP Ping #{self.packets_received} received from {client_str} "
-                        f"({payload_len} B) | phase: {data.get('flight_phase', 'N/A')} | node: {data.get('device_id', 'N/A')}",
-                        flush=True,
-                    )
-
-                    if self.on_frame_cb:
+                    if self.on_frame_cb and ok:
                         try:
-                            self.on_frame_cb(data)
+                            self.on_frame_cb(data, addr[0], recv_utc)
                         except Exception as ex:
                             logger.warning("Error in on_frame callback: %s", ex)
 
@@ -422,6 +236,16 @@ class TcpReceiver:
                         pass
                     self._server_sock = None
 
+    def _log_rejected(self, data: dict[str, Any], client: str, utc: float, reason: str) -> None:
+        """Rejected packets are logged, never applied."""
+        try:
+            self.rejected_log.parent.mkdir(parents=True, exist_ok=True)
+            with self.rejected_log.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"recv_utc": utc, "src": client, "reason": reason, "timestamp_ms": data.get("timestamp_ms") if isinstance(data, dict) else None,
+                                     "flight_phase": data.get("flight_phase") if isinstance(data, dict) else None}) + "\n")
+        except OSError as exc:
+            logger.warning("cannot log rejected twin packet: %s", exc)
+
     def get_status(self) -> dict[str, Any]:
         """Return diagnostic status of the TCP receiver."""
         with self.lock:
@@ -440,6 +264,7 @@ class TcpReceiver:
                 "last_payload_len": self.last_payload_len,
                 "last_ack": self.last_ack,
                 "has_received_live": self.has_received_live,
+                "filter": self.filter.stats(now),
             }
 
     def get_snapshot(self) -> dict[str, Any]:

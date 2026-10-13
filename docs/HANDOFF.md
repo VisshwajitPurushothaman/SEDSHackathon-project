@@ -125,10 +125,20 @@ values (TANK_P from time, rate 2.0 Hz, loss 0 %, MEASURED/NOMINAL labels, a fixe
 pre-signed closure). The ICD/UDP path is real. Config drift: the site moved to 10.30 N but the approved
 area, range zones, snapshot atmosphere and ML data did not (impact gate cannot pass; 1 test fails).
 
+## Phase B progress
+
+- B.0 raw capture (backend stopped 120 s, `tools/audit/link_probe.py`): 942 packets, all from
+  172.16.58.215, 926 connections; frozen (MET 1813.295 s) 470, zero-time PRELAUNCH 235, live 237.
+  All three arrive ON THE WIRE from Laptop A (each with its own payload size and field set, each at
+  its own 2 Hz cadence): nothing inside B produces them. Sender-side cause for the user: several twin
+  instances on A ping B (a PRELAUNCH one never started, a stale one at MET 1813 s sent twice per tick,
+  and the current one). A's packets declare origin "Chennai Launch Pad (13.0827 N, 80.2707 E)".
+- B.1 done: `aerofire/receiver/twin.py` TwinFilter (source lock, lock only on an advancing stream,
+  MET-monotonic, rejects zero-time/repeat/backward/foreign, re-lock after a 10 s stall), rejected
+  packets logged to `data/sessions/twin_rejected.jsonl`, measured rate/age; removed the merge hack,
+  the Point Calimere re-projection, the LEO fixture and the inject/reset endpoints.
+
 ## Status
 
-- Steps 1-5 committed; Step 6 (post-flight) was swept into teammate commit `87458be` untested.
-- Phase A audit committed. **Waiting for the user's "go"** before Phase B, and for Laptop A's code in
-  `external/laptopA/` (sender-side cause of the three streams).
-- Next exact step after "go": Phase B.1 link/fluctuation fix (one stream, sequence/MET monotonicity,
-  measured link stats, TCP packets routed through the channel mapping into the estimator).
+- Next exact step: B.2 route accepted twin packets through a channel mapping into GroundSession
+  (estimator, gates, forecasts, ML, post-flight); delete the TCP-only display/post-flight logic.
