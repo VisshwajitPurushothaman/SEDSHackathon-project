@@ -71,4 +71,4 @@ class HybridPredictor:
         c = self.card
         return {"available": True, "name": c["name"], "sklearn": c["sklearn"], "train_seeds": c["train_seeds"],
                 "test_seeds": c["test_seeds"], "data_sha256": c["data_sha256"][:16], "evaluation": c.get("evaluation"),
-                "label": "experimental: trained on simulator data only"}
+                "label": (((c.get("evaluation") or {}).get("label")) or "experimental, marginal gain") + " · simulator data only"}

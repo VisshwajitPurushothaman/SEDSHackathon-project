@@ -1,4 +1,4 @@
-"""Evaluate persistence vs physics vs hybrid on the TEST missions only -> docs/ML_RESULTS.md.
+"""Evaluate persistence (x + v*h) vs physics vs hybrid on the TEST missions only -> docs/ML_RESULTS.md.
 
     python -m aerofire.ml.evaluate
 
@@ -51,7 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     card = pred.card
     test = d["split_test"] == 1
     rng = np.random.default_rng(11)
-    rows, decisions, ci_all = [], {}, {}
+    rows, decisions, ci_all, ci_phys = [], {}, {}, {}
+    fi = {n: i for i, n in enumerate(F.FEATURES)}
     fallback = {}
     latency = {}
     importances = {}
@@ -64,12 +65,16 @@ def main(argv: list[str] | None = None) -> int:
             key = f"{tgt}@{h}"
             mdl = pred.models[key]
             corr = np.where(oor, 0.0, mdl.predict(X))
-            e_pers, e_phys, e_hyb = truth[:, k] - pers[:, k], truth[:, k] - phys[:, k], truth[:, k] - (phys[:, k] + corr)
-            lo, hi = bootstrap(np.abs(e_phys), np.abs(e_hyb), groups, rng)
+            vel = np.column_stack([X[:, fi["vz"]], X[:, fi["ve"]], X[:, fi["vn"]]])[:, k]
+            e_hold = truth[:, k] - pers[:, k]
+            e_pers = truth[:, k] - (pers[:, k] + vel * h)  # persistence = constant velocity x + v*h
+            e_phys, e_hyb = truth[:, k] - phys[:, k], truth[:, k] - (phys[:, k] + corr)
+            lo, hi = bootstrap(np.abs(e_pers), np.abs(e_hyb), groups, rng)
             ci_all[key] = [lo, hi]
-            decisions[key] = lo > 0.0
+            ci_phys[key] = list(bootstrap(np.abs(e_phys), np.abs(e_hyb), groups, rng))
+            decisions[key] = lo > 0.0  # hybrid default only if it beats persistence with a CI excluding 0
             for split, sel in (("overall", np.ones(len(X), bool)), ("ascent", isf == 0), ("float", isf == 1)):
-                rows.append({"key": key, "split": split, "n": int(sel.sum()), "persistence": metrics(e_pers[sel]),
+                rows.append({"key": key, "split": split, "n": int(sel.sum()), "hold": metrics(e_hold[sel]), "persistence": metrics(e_pers[sel]),
                              "physics": metrics(e_phys[sel]), "hybrid": metrics(e_hyb[sel])})
             t0 = time.perf_counter()
             for i in range(200):
@@ -83,6 +88,8 @@ def main(argv: list[str] | None = None) -> int:
                 importances[key] = [(F.FEATURES[i], float(pi.importances_mean[i])) for i in order]
     primary = decisions[PRIMARY]
     ev = {"test_missions": len(np.unique(d["seed"][test])), "rows_test": int(test.sum()), "ci95_mae_improvement_m": ci_all,
+          "ci95_vs_physics_m": ci_phys, "baseline": "persistence = constant velocity x + v*h (fused velocity at t)",
+          "label": "validated on simulated test missions (beats persistence)" if primary else "experimental, marginal gain",
           "default_enabled": decisions, "primary": PRIMARY, "primary_decision": "hybrid default" if primary else "physics default",
           "fallback_rate_by_horizon": fallback, "latency_ms_single_row": latency, "permutation_top3": importances,
           "table": rows, "bootstrap_resamples": B}
@@ -108,28 +115,29 @@ def render(card: dict, ev: dict) -> str:
         "balloon Cd, gas superheat, payload mass error; all ASSUMPTIONS). The improvement says the model learned",
         "*those* simulated discrepancies. It is not evidence about real balloons or real forecast errors.",
         "",
-        "- **Persistence**: position held at the current fused value.",
+        "- **Persistence**: constant velocity, x + v·h with the fused velocity at t (also shown: position held).",
         "- **Physics**: deterministic mean path of the ground particle predictor (current climb rate up to the design",
-        "  float altitude, float holds, forecast winds).",
+        "  float altitude, float holds), drifting with the forecast wind corrected by the measured drift.",
         "- **Hybrid**: physics + HistGradientBoosting residual (truth − physics), with the runtime fallback to physics",
         f"  when a feature is outside its training range (fallback rate on test rows: "
         + ", ".join(f"{h} s {100 * r:.1f} %" for h, r in ev["fallback_rate_by_horizon"].items()) + ").",
         "",
         f"Decision rule (fixed before evaluation): hybrid is the default display for a target/horizon only if the",
-        f"mission-bootstrap 95 % CI ({ev['bootstrap_resamples']} resamples) of the MAE improvement excludes 0.",
-        f"Primary metric: altitude at 30 s → **{ev['primary_decision']}**.",
+        f"mission-bootstrap 95 % CI ({ev['bootstrap_resamples']} resamples) of MAE(persistence) − MAE(hybrid) excludes 0;",
+        f"otherwise it is labelled \"experimental, marginal gain\". Primary metric: altitude at 30 s → **{ev['primary_decision']}**.",
         "",
         "## Overall (test missions)",
         "",
-        "| target @ horizon | persistence MAE | physics MAE | hybrid MAE | improvement 95 % CI (m) | hybrid default |",
-        "|---|---|---|---|---|---|",
+        "| target @ horizon | hold MAE | persistence x+v·h MAE | physics MAE | hybrid MAE | CI vs persistence (m) | CI vs physics (m) | hybrid default |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for r in ev["table"]:
         if r["split"] != "overall":
             continue
         lo, hi = ev["ci95_mae_improvement_m"][r["key"]]
-        out.append(f"| {r['key']} s | {f(r['persistence']['mae'])} | {f(r['physics']['mae'])} | {f(r['hybrid']['mae'])} | "
-                   f"{lo:.2f} … {hi:.2f} | {'yes' if ev['default_enabled'][r['key']] else 'no (experimental)'} |")
+        plo, phi = ev["ci95_vs_physics_m"][r["key"]]
+        out.append(f"| {r['key']} s | {f(r['hold']['mae'])} | {f(r['persistence']['mae'])} | {f(r['physics']['mae'])} | {f(r['hybrid']['mae'])} | "
+                   f"{lo:.2f} … {hi:.2f} | {plo:.2f} … {phi:.2f} | {'yes' if ev['default_enabled'][r['key']] else 'no (experimental, marginal gain)'} |")
     out += ["", "## By phase: MAE / RMSE / P90 (m)", "", "| target @ horizon | phase | n | persistence | physics | hybrid |", "|---|---|---|---|---|---|"]
     for r in ev["table"]:
         if r["split"] == "overall":

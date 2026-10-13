@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from ..ground import profile as PF
-from ..ground.forecast import HORIZONS, state_from_estimates
+from ..ground.forecast import HORIZONS, drift_of, state_from_estimates
 from ..ml import features as MLF
 from ..physics import geo
 from ..ground.station import GroundStation
@@ -321,7 +321,7 @@ class GroundSession:
         self._forecast_met = met
         fc = self.forecaster
         rocket_aboard = fr["rocket_phase"] == "ABOARD"
-        path = fc.path(phase, st["z"], st["vz"], st["east"], st["north"], rocket_aboard, horizon_s=600.0)
+        path = fc.path(phase, st["z"], st["vz"], st["east"], st["north"], rocket_aboard, horizon_s=600.0, drift=drift_of(st))
         at_h = fc.at_horizons(path)
         wind = fc.wind(st["z"])
         ll = lambda e, n: geo.enu_to_latlon(e, n, self.lat0, self.lon0)  # noqa: E731

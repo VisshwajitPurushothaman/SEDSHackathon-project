@@ -120,6 +120,11 @@ def test_ml_api_contract():
 
     c = TestClient(app)
     m = c.get("/api/ground/ml/model").json()
-    assert m["available"] and m["evaluation"]["primary"] == "z@30" and "experimental" in m["label"]
+    ev = m["evaluation"]
+    assert m["available"] and ev["primary"] == "z@30" and "simulator data only" in m["label"]
+    # Label follows the decision rule: default only if the CI of MAE(persistence) - MAE(hybrid) excludes 0.
+    beats = ev["ci95_mae_improvement_m"]["z@30"][0] > 0
+    assert ev["default_enabled"]["z@30"] is beats
+    assert m["label"].startswith("validated" if beats else "experimental, marginal gain")
     rep = c.get("/api/ground/ml/report")
     assert rep.status_code == 200 and rep.text.startswith("# Hybrid physics + ML trajectory forecast")

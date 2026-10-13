@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 from ..config import load_config, load_raw
-from ..ground.forecast import HORIZONS, PhysicsForecaster, state_from_estimates
+from ..ground.forecast import HORIZONS, PhysicsForecaster, drift_of, state_from_estimates
 from ..ground.station import GroundStation
 from ..physics import atmosphere as A
 from ..sim.mission import Faults, MissionSim, sample_variability
@@ -89,7 +89,7 @@ def one_mission(seed: int) -> dict[str, np.ndarray]:
         st = state_from_estimates(fr["estimates"])
         if st is None or st["status"] != "FUSED":
             continue
-        path = fc.path(ph, st["z"], st["vz"], st["east"], st["north"], horizon_s=max(HORIZONS))
+        path = fc.path(ph, st["z"], st["vz"], st["east"], st["north"], horizon_s=max(HORIZONS), drift=drift_of(st))
         at_h = fc.at_horizons(path)
         wind = fc.wind(st["z"])
         for h in HORIZONS:

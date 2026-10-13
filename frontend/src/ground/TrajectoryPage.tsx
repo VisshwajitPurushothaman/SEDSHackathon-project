@@ -81,9 +81,10 @@ function ModelCardPanel({ card, fc, ml, setMl }: { card: ModelCard | null; fc: F
                 <thead>
                   <tr>
                     <th>alt @</th>
+                    <th className="text-right">persist. x+v·h</th>
                     <th className="text-right">physics MAE</th>
                     <th className="text-right">hybrid MAE</th>
-                    <th className="text-right">Δ 95 % CI</th>
+                    <th className="text-right">Δ vs persist. 95 % CI</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -94,6 +95,7 @@ function ModelCardPanel({ card, fc, ml, setMl }: { card: ModelCard | null; fc: F
                     return (
                       <tr key={h}>
                         <td className="num">{h} s</td>
+                        <td className="num text-right">{fmtNum(r?.persistence.mae, 1)} m</td>
                         <td className="num text-right">{fmtNum(r?.physics.mae, 1)} m</td>
                         <td className="num text-right">{fmtNum(r?.hybrid.mae, 1)} m</td>
                         <td className="num text-right">
@@ -104,7 +106,7 @@ function ModelCardPanel({ card, fc, ml, setMl }: { card: ModelCard | null; fc: F
                   })}
                 </tbody>
               </table>
-              <p className="mt-1 text-[10.5px] text-muted">Test missions only; simulator data. Improvement = physics MAE − hybrid MAE.</p>
+              <p className="mt-1 text-[10.5px] text-muted">Test missions only; simulator data. Δ = persistence MAE − hybrid MAE; hybrid is default only where this CI excludes 0.</p>
             </>
           )}
           <a className="mt-1 inline-block text-[11.5px] text-info hover:underline" href={`${API_URL}/api/ground/ml/report`} target="_blank" rel="noreferrer">

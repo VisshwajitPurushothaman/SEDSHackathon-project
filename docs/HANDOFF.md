@@ -164,8 +164,15 @@ area, range zones, snapshot atmosphere and ML data did not (impact gate cannot p
   packet) and a 1 Hz history pull. Fused-state panel shows raw sensor beside fused ±1σ; console-wide
   banners for backend unreachable / no stream locked / LOS. console.spec: locators updated for the
   teammate's redesigned headings (checks unchanged); 7 passed.
+- B.6 done: physics forecast uses the measured drift (wind error at the current altitude, decaying over
+  `prediction.drift_decay_m` = 3000 m [ASSUMPTION]); dataset regenerated at the new site (79 s), retrained
+  (113 s), evaluated on test missions with persistence = x + v*h. Hybrid beats persistence for all 9
+  target/horizons with CIs excluding 0 (alt@30 s: persistence 8.5 m, physics 14.8 m, hybrid 2.0 m, CI
+  6.41-6.60 m) -> default, card label "validated on simulated test missions (beats persistence) - simulator
+  data only". Horizontal physics now beats persistence (east@30 s 6.8 vs 7.7 m).
 
 ## Status
 
-- Next exact step: B.6 physics forecast with measured drift; retrain ML on the new site; ML_RESULTS with
-  x+v*h, physics and hybrid + CIs; hybrid default only if it beats x+v*h with a CI excluding 0.
+- Next exact step: B.7 verification: two-laptop run (needs Laptop A advancing: currently holding at MET
+  3544.4 s), A1/A2 re-run, perturbation test, full suites, PLAYBACK recording, README firewall steps,
+  DEMO_SCRIPT.md, LIMITS.md.

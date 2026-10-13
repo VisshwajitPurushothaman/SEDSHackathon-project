@@ -224,6 +224,7 @@ prediction:
   horizon_after_float_s: 3600.0  # [ASSUMPTION] profile length after float entry
   sample_s: 5.0               # profile sample interval
   off_nominal_persist_s: 30.0 # [ASSUMPTION] outside the band this long (mission s) -> OFF-NOMINAL caution
+  drift_decay_m: 3000.0       # [ASSUMPTION] physics forecast: measured wind error fades over this height difference
   tolerance:                  # [ASSUMPTION] model/forecast tolerance added to the envelope (dictionary units)
     GNSS_ALT: 150.0           # m
     GNSS_VU: 0.6              # m/s
