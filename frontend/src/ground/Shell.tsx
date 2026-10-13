@@ -3,7 +3,7 @@ import type { Alarm } from './api';
 import { fmtAge, fmtMET, fmtUTC } from './format';
 import { useGround } from './store';
 
-export type PageId = 'overview' | 'preflight' | 'flight' | 'trajectory' | 'postflight' | 'events';
+export type PageId = 'overview' | 'preflight' | 'flight' | 'trajectory' | 'postflight';
 
 export const PAGES: { id: PageId; label: string; key: string }[] = [
   { id: 'overview', label: 'OVERVIEW', key: '1' },
@@ -11,12 +11,11 @@ export const PAGES: { id: PageId; label: string; key: string }[] = [
   { id: 'flight', label: 'FLIGHT', key: '3' },
   { id: 'trajectory', label: 'TRAJECTORY', key: '4' },
   { id: 'postflight', label: 'POST-FLIGHT', key: '5' },
-  { id: 'events', label: 'EVENTS', key: '6' },
 ];
 
 const pageFromHash = (): PageId => {
   const h = location.hash.replace(/^#\/?/, '');
-  return (PAGES.find((p) => p.id === h)?.id ?? 'flight') as PageId;
+  return (PAGES.find((p) => p.id === h)?.id ?? 'overview') as PageId;
 };
 
 export function usePage(): PageId {
@@ -102,16 +101,24 @@ function TopBar() {
           {source}
           {source === 'PLAYBACK' && snap?.receiver.playback_done ? ' · END' : ''}
         </span>
+        {snap?.digital_twin && (
+          <span
+            className={`tag ${snap.digital_twin.server_status === 'CONNECTED' ? 'tag-nom' : snap.digital_twin.server_status === 'LISTENING' ? 'tag-pred' : 'tag-stale'} text-[11px]`}
+            title={`TCP ${snap.digital_twin.port} ${snap.digital_twin.server_status} · Packets: ${snap.digital_twin.packets_received}`}
+          >
+            TCP {snap.digital_twin.port}: {snap.digital_twin.server_status === 'CONNECTED' ? 'STREAMING' : snap.digital_twin.server_status}
+          </span>
+        )}
         {snap?.recording && (
           <span className="flex items-center gap-1 text-[11px] font-semibold text-fail" title={snap.session_file ?? ''}>
             <span className="h-2 w-2 rounded-full bg-fail" aria-hidden /> REC
           </span>
         )}
       </div>
-      <a href="#/events" className="ml-auto flex items-center gap-2 px-3" aria-label={`${active} active alarms`}>
+      <div className="ml-auto flex items-center gap-2 px-3" aria-label={`${active} active alarms`}>
         <span className="lbl">Alarms</span>
         <span className={`tag ${active ? 'tag-alm' : 'tag-nom'} text-[13px]`}>{active}</span>
-      </a>
+      </div>
     </header>
   );
 }

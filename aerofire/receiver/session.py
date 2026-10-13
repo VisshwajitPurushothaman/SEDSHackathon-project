@@ -12,6 +12,7 @@ deterministic.
 from __future__ import annotations
 
 import json
+import threading
 import statistics
 from collections import deque
 from pathlib import Path
@@ -34,7 +35,9 @@ HISTORY_KEYS = ("GNSS_ALT", "GNSS_VU", "TANK_P", "TANK_T", "MOTOR_T", "IMU_TILT"
 
 class GroundSession:
     def __init__(self, cfg, forecast: A.AtmosphereProfile, mission_id: str, source: str = "LIVE UDP",
-                 sessions_dir: Path | None = None, record: bool = True, preflight_ctx: dict[str, Any] | None = None):
+                 sessions_dir: Path | None = None, record: bool = True, preflight_ctx: dict[str, Any] | None = None,
+                 lock: Any = None):
+        self.lock = lock or threading.RLock()  # shared with the receiver (recovery runs in its own thread)
         self.cfg, self.mission_id, self.source, self.forecast = cfg, mission_id, source, forecast
         self.preflight_ctx = preflight_ctx or {}
         self.pad = PadEvidence()
@@ -48,6 +51,18 @@ class GroundSession:
         self.traj_forecast: dict[str, Any] | None = None  # (self.forecast is the forecast atmosphere)
         self.forecast_log: list[dict[str, Any]] = []
         self._forecast_met = -1e9
+        # Evidence kept for post-flight (ground-side only).
+        self.prediction_log: list[dict[str, Any]] = []
+        self.footprint_at_cutdown: dict[str, Any] | None = None
+        self.landing_fix: dict[str, Any] | None = None
+        self.go_times: list[float] = []
+        self.t_float: float | None = None
+        self.sender_addr: str | None = None
+        self.recovered_seqs: set[int] = set()
+        self.recovery: Any = None
+        self.truth: dict[str, Any] | None = None
+        self.closure: dict[str, dict[str, Any] | None] = {"payload_recovered": None, "data_archived": None, "anomalies_filed": None}
+        self._pf_cache: tuple | None = None
         self.key, self.genesis = cfg.telemetry.hmac_key_demo, cfg.telemetry.hmac_genesis
         self.dictionary = icd.load_channels()
         self.ground = GroundStation(cfg, forecast, reorder_delay_s=1.0)
@@ -182,6 +197,7 @@ class GroundSession:
         self._check_limits(utc)
         self._check_range(utc, fr)
         self._maybe_forecast(met, fr)
+        self._keep_evidence(met, fr)
         E = fr["estimates"]
         if store:
             self._check_off_nominal(utc, met)
@@ -269,6 +285,22 @@ class GroundSession:
         for k in self._range_keys - keys:
             self.log(utc, "system", "range conflict cleared", {"conflict": k})
         self._range_keys = keys
+
+    def _keep_evidence(self, met: float, fr: dict[str, Any]) -> None:
+        E, ph = fr["estimates"], fr["vehicle_phase"]
+        if fr["recommendation"] == "GO_RECOMMENDED":
+            self.go_times.append(met)
+        if ph == "FLOAT" and self.t_float is None:
+            self.t_float = met
+        pred = E.get("prediction")
+        if fr["predicting"] and isinstance(pred, dict) and pred.get("regions") and \
+                (not self.prediction_log or met - self.prediction_log[-1]["t_snapshot"] >= 10.0):
+            self.prediction_log.append({"t_snapshot": met, "regions": pred["regions"]})
+        fp = fr.get("landing_footprint")
+        if self.footprint_at_cutdown is None and ph == "DESCENT" and fp and str(fp.get("basis", "")).startswith("descent"):
+            self.footprint_at_cutdown = fp
+        if ph == "LANDED" and E.get("lat", {}).get("status") == "FUSED":
+            self.landing_fix = {"t": met, "lat": E["lat"]["value"], "lon": E["lon"]["value"]}
 
     def _maybe_forecast(self, met: float, fr: dict[str, Any]) -> None:
         """Physics trajectory forecast every 5 mission seconds, plus the ML residual correction (hybrid)."""

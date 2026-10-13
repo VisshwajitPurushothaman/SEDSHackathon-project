@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { ChannelRow, Estimate, Gate, GroundFrame, HistoryRow, Limits, Snapshot } from './api';
 import { fmtAge, fmtBand, fmtChannel, fmtMET, fmtNum, LIMIT_TAG, STATUS_TAG } from './format';
+import { ArtificialHorizon } from './ArtificialHorizon';
+import { MissionLiveMap } from './MissionLiveMap';
 import { StripChart, type StripSeries } from './StripChart';
 import { useGround } from './store';
 import { ui } from '../theme/tokens';
@@ -153,8 +155,8 @@ export function FlightCharts({ snap }: { snap: Snapshot | null }) {
     return [
       { title: 'Altitude', unit: 'm', m: 'GNSS_ALT', dec: 0, band: true, series: [meas('GNSS_ALT', 'GNSS_ALT'), { label: 'FUSED', values: col(rows, 'fused_altitude'), color: ui.white }] },
       { title: 'Vertical speed', unit: 'm/s', m: 'GNSS_VU', dec: 2, band: true, series: [meas('GNSS_VU', 'GNSS_VU'), { label: 'FUSED', values: col(rows, 'fused_vertical_speed'), color: ui.white }] },
-      { title: 'Tank pressure', unit: 'bar', m: 'TANK_P', dec: 2, band: true, series: [meas('TANK_P', 'TANK_P')] },
-      { title: 'Motor temperature', unit: '°C', m: 'MOTOR_T', dec: 1, band: true, series: [meas('MOTOR_T', 'MOTOR_T')] },
+      { title: 'Tank pressure', unit: 'bar', m: 'TANK_P', dec: 1, band: true, series: [meas('TANK_P', 'TANK_P'), { label: 'PRESSURANT TANK', values: col(rows, 'TANK_P'), color: ui.hold }] },
+      { title: 'Gauge pressure', unit: 'hPa', m: 'GAUGE_P', dec: 2, band: true, series: [meas('GAUGE_P', 'GAUGE_P'), { label: 'BALLOON SUPERPRESSURE', values: col(rows, 'GAUGE_P'), color: '#5cd6ff' }] },
       { title: 'Gondola tilt', unit: 'deg', m: 'IMU_TILT', dec: 2, band: false, series: [meas('IMU_TILT', 'IMU_TILT')] },
     ];
   }, [rows]);
@@ -425,17 +427,141 @@ export function LinkPanel({ snap }: { snap: Snapshot | null }) {
 export default function FlightPage() {
   const snap = useGround((s) => s.snap);
   const g = snap?.ground;
+  const [flightView, setFlightView] = useState<'mission_planner' | 'telemetry_grid'>('mission_planner');
+
+  const dt = snap?.digital_twin_telemetry;
+  const imu = dt?.imu_sensor;
+  const roll = imu?.attitude_rpy_deg?.[0] ?? 0;
+  const pitch = imu?.attitude_rpy_deg?.[1] ?? 0;
+  const yaw = imu?.attitude_rpy_deg?.[2] ?? 0;
+  const rawAlt = dt?.gnss_coordinates?.geodetic_wgs84?.alt_m ?? g?.estimates?.altitude?.value;
+  const alt = typeof rawAlt === 'number' ? rawAlt : Number(rawAlt) || 0;
+
+  const rawLat = dt?.gnss_coordinates?.geodetic_wgs84?.lat_deg ?? g?.estimates?.lat?.value;
+  const lat = typeof rawLat === 'number' ? rawLat : Number(rawLat) || 37.1;
+
+  const rawLon = dt?.gnss_coordinates?.geodetic_wgs84?.lon_deg ?? g?.estimates?.lon?.value;
+  const lon = typeof rawLon === 'number' ? rawLon : Number(rawLon) || -6.733;
+
+  const rawSpd = g?.estimates?.ground_speed?.value;
+  const spd = typeof rawSpd === 'number' ? rawSpd : Number(rawSpd) || 0;
+
+  const rawVz = g?.estimates?.vertical_speed?.value;
+  const vz = typeof rawVz === 'number' ? rawVz : Number(rawVz) || 0;
+
+  const isAttached = dt?.payload_state?.is_attached ?? true;
+  const flightPhase = dt?.flight_phase ?? snap?.fc_phase ?? 'IN-FLIGHT';
+
   return (
-    <div className="grid h-full min-h-[760px] grid-cols-[minmax(520px,1.05fr)_minmax(380px,1fr)_330px] gap-2 p-2">
-      <TelemetryTable channels={snap?.channels ?? []} />
-      <div className="min-h-0 overflow-auto">
-        <FlightCharts snap={snap} />
+    <div className="flex h-full min-h-[760px] flex-col p-2 gap-2">
+      {/* Sub-navigation bar inside Mission/Flight section */}
+      <div className="flex items-center justify-between border-b border-[#222e42] bg-[#0c1422] px-3 py-1.5 rounded">
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-bold uppercase tracking-wider text-[#5cd6ff]">
+            Flight Mission Operations
+          </span>
+          <span className="rounded bg-[#1a2638] px-2 py-0.5 text-[10px] text-muted">
+            Phase: {flightPhase}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 bg-[#070b12] p-1 rounded border border-[#222e42]">
+          <button
+            type="button"
+            onClick={() => setFlightView('mission_planner')}
+            className={`rounded px-3 py-1 text-[11px] font-bold transition-colors ${
+              flightView === 'mission_planner'
+                ? 'bg-[#1e74ba] text-white shadow'
+                : 'text-muted hover:text-white'
+            }`}
+          >
+            🧭 Mission Planner HUD & Map
+          </button>
+          <button
+            type="button"
+            onClick={() => setFlightView('telemetry_grid')}
+            className={`rounded px-3 py-1 text-[11px] font-bold transition-colors ${
+              flightView === 'telemetry_grid'
+                ? 'bg-[#1e74ba] text-white shadow'
+                : 'text-muted hover:text-white'
+            }`}
+          >
+            📊 Telemetry Channels & Charts
+          </button>
+        </div>
       </div>
-      <div className="flex min-h-0 flex-col gap-2 overflow-auto">
-        <GatesPanel g={g} snap={snap} />
-        <FusedPanel g={g} />
-        <LinkPanel snap={snap} />
-      </div>
+
+      {flightView === 'mission_planner' ? (
+        <div className="grid flex-1 grid-cols-1 gap-2 lg:grid-cols-[440px_minmax(0,1fr)_330px]">
+          {/* PFD Gyroscopic Display */}
+          <div className="flex flex-col gap-2 min-h-0">
+            <div className="h-[360px] shrink-0">
+              <ArtificialHorizon
+                rollDeg={roll}
+                pitchDeg={pitch}
+                yawDeg={yaw}
+                altitudeM={alt}
+                speedMps={spd}
+                verticalSpeedMps={vz}
+                armedStatus={isAttached ? 'GONDOLA LOCKED' : 'RELEASED'}
+                gpsStatus="GPS: 3D FIX"
+                flightPhase={flightPhase}
+              />
+            </div>
+            {/* Mission status quick summary */}
+            <div className="flex-1 rounded border border-[#222e42] bg-[#0c1422] p-3">
+              <span className="lbl block mb-2">Live Flight Metrics</span>
+              <div className="grid grid-cols-2 gap-2 text-[12px]">
+                <div className="rounded border border-[#30234a] bg-[#140e24] p-2">
+                  <span className="text-[10.5px] text-[#b388ff]">Altitude</span>
+                  <div className="text-[18px] font-bold text-[#b388ff]">{Math.round(alt).toLocaleString()} m</div>
+                </div>
+                <div className="rounded border border-[#0d3b19] bg-[#051c0a] p-2">
+                  <span className="text-[10.5px] text-[#00e676]">Heading</span>
+                  <div className="text-[18px] font-bold text-[#00e676]">{Math.round(yaw)}°</div>
+                </div>
+                <div className="rounded border border-[#4d2f09] bg-[#211403] p-2">
+                  <span className="text-[10.5px] text-[#ff9800]">Groundspeed</span>
+                  <div className="text-[18px] font-bold text-[#ff9800]">{spd.toFixed(1)} m/s</div>
+                </div>
+                <div className="rounded border border-[#4d4409] bg-[#211d03] p-2">
+                  <span className="text-[10.5px] text-[#ffeb3b]">Vert. Speed</span>
+                  <div className="text-[18px] font-bold text-[#ffeb3b]">{vz >= 0 ? `+${vz.toFixed(1)}` : vz.toFixed(1)} m/s</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Location Moving Map */}
+          <div className="h-full min-h-[500px]">
+            <MissionLiveMap
+              vehicleLat={lat}
+              vehicleLon={lon}
+              vehicleAltM={alt}
+              yawDeg={yaw}
+              flightPhase={flightPhase}
+            />
+          </div>
+
+          {/* Right side: Commit gates and Fused state */}
+          <div className="flex min-h-0 flex-col gap-2 overflow-auto">
+            <GatesPanel g={g} snap={snap} />
+            <FusedPanel g={g} />
+            <LinkPanel snap={snap} />
+          </div>
+        </div>
+      ) : (
+        <div className="grid flex-1 min-h-[700px] grid-cols-[minmax(520px,1.05fr)_minmax(380px,1fr)_330px] gap-2">
+          <TelemetryTable channels={snap?.channels ?? []} />
+          <div className="min-h-0 overflow-auto">
+            <FlightCharts snap={snap} />
+          </div>
+          <div className="flex min-h-0 flex-col gap-2 overflow-auto">
+            <GatesPanel g={g} snap={snap} />
+            <FusedPanel g={g} />
+            <LinkPanel snap={snap} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

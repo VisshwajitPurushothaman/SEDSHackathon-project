@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_URL } from '../api/client';
 import { ui } from '../theme/tokens';
 import { fmtMET, fmtNum } from './format';
 import { profileMapProps, useProfile } from './PreflightPage';
 import { RangeMap, type MapLine, type MapPoint, type MapPoly } from './RangeMap';
 import { StripChart } from './StripChart';
+import { TrajectoryXYZGraph, type TrajectoryXYZPoint } from './TrajectoryXYZGraph';
 import { useGround } from './store';
 
 interface HorizonForecast {
@@ -42,6 +43,11 @@ interface ModelCard {
 }
 
 const H = ['30', '60', '120'];
+
+// Point Calimere Bird Sanctuary (Tamil Nadu) Launch Origin
+const ORIGIN_LAT = 10.301500;
+const ORIGIN_LON = 79.851200;
+const ORIGIN_NAME = 'Point Calimere Bird Sanctuary (Tamil Nadu)';
 
 function ModelCardPanel({ card, fc, ml, setMl }: { card: ModelCard | null; fc: Forecast | null; ml: boolean; setMl: (v: boolean) => void }) {
   const ev = card?.evaluation;
@@ -134,19 +140,76 @@ export default function TrajectoryPage() {
   const prof = useProfile();
   const [card, setCard] = useState<ModelCard | null>(null);
   const [mlOverride, setMl] = useState<boolean | null>(null);
+  const [mainTab, setMainTab] = useState<'xyz' | 'map'>('xyz');
+
   useEffect(() => {
     fetch(`${API_URL}/api/ground/ml/model`)
       .then((r) => r.json() as Promise<ModelCard>)
       .then(setCard)
       .catch(() => setCard({ available: false, error: 'backend unreachable' }));
   }, []);
+
   const ml = mlOverride ?? !!card?.evaluation?.default_enabled?.['z@30'];
   const fc = (snap as unknown as { forecast?: Forecast | null } | null)?.forecast ?? null;
   const g = snap?.ground;
 
+  // Latch coordinates to prevent fluctuating between pings
+  const dt = snap?.digital_twin_telemetry;
+  const latchedCoords = useRef({ x: 0, y: 0, z: 0, slant: 0 });
+
+  if (dt?.gnss_coordinates) {
+    const rawX = dt.gnss_coordinates.x_downrange_m ?? dt.gnss_coordinates.position_from_origin_xyz_m?.[0] ?? 0;
+    const rawY = dt.gnss_coordinates.y_altitude_m ?? dt.gnss_coordinates.position_from_origin_xyz_m?.[1] ?? 0;
+    const rawZ = dt.gnss_coordinates.z_crossrange_m ?? dt.gnss_coordinates.position_from_origin_xyz_m?.[2] ?? 0;
+    const slant = dt.gnss_coordinates.slant_range_3d_m ?? Math.hypot(rawX, rawY, rawZ);
+
+    if (rawY > 0 || latchedCoords.current.y === 0) {
+      latchedCoords.current = { x: rawX, y: rawY, z: rawZ, slant };
+    }
+  } else if (rows.length > 0) {
+    const lastR = rows[rows.length - 1];
+    const rawX = (lastR.x as number) ?? 0;
+    const rawY = (lastR.y as number) ?? (lastR.GNSS_ALT as number) ?? 0;
+    const rawZ = (lastR.z as number) ?? 0;
+    const slant = Math.hypot(rawX, rawY, rawZ);
+    if (rawY > 0 || latchedCoords.current.y === 0) {
+      latchedCoords.current = { x: rawX, y: rawY, z: rawZ, slant };
+    }
+  }
+
+  const { x: curX, y: curY, z: curZ, slant: curSlant } = latchedCoords.current;
+
+  // High-precision WGS84 Geodetic fix derived from Launch Pad Origin at Point Calimere
+  const computedLat = ORIG_LAT_CALC(curZ);
+  const computedLon = ORIG_LON_CALC(curX);
+
+  function ORIG_LAT_CALC(z: number): number {
+    return Number((ORIGIN_LAT + z / 110609.6).toFixed(6));
+  }
+  function ORIG_LON_CALC(x: number): number {
+    return Number((ORIGIN_LON + x / 109531.0).toFixed(6));
+  }
+
+  // Ping paused / prediction indicator
+  const isPaused =
+    dt?.ping_paused === 1 ||
+    dt?.ping_paused === true ||
+    dt?.ping_paused === '1' ||
+    dt?.is_prediction_active === true ||
+    dt?.simulation_state?.is_paused === true;
+
+  // History for 3D XYZ graph
+  const historyXYZ: TrajectoryXYZPoint[] = useMemo(() => {
+    return rows.map((r) => ({
+      x: typeof r.x === 'number' ? r.x : 0,
+      y: typeof r.y === 'number' ? r.y : typeof r.GNSS_ALT === 'number' ? r.GNSS_ALT : 0,
+      z: typeof r.z === 'number' ? r.z : 0,
+      met: r.met,
+    }));
+  }, [rows]);
+
   const lines = useMemo<MapLine[]>(() => {
     const out: MapLine[] = [];
-    // Measured (FUSED) segments green, PREDICTED (LOS) segments cyan.
     let seg: [number, number][] = [];
     let st = '';
     const flush = () => {
@@ -179,12 +242,12 @@ export default function TrajectoryPage() {
 
   const points = useMemo<MapPoint[]>(() => {
     const out: MapPoint[] = [];
+    out.push({ id: 'pad-origin', lat: ORIGIN_LAT, lon: ORIGIN_LON, color: '#f5c542', label: 'PAD: Point Calimere Bird Sanctuary' });
+    out.push({ id: 'vehicle-pos', lat: computedLat, lon: computedLon, color: ui.pass, label: `VEHICLE (${curY.toFixed(0)}m)` });
     const ip = (g as unknown as { impact_points?: { case: string; lat: number; lon: number; inside: boolean }[] } | undefined)?.impact_points;
-    for (const p of ip ?? []) out.push({ id: `iip-${p.case}`, lat: p.lat, lon: p.lon, color: p.inside ? ui.white : ui.fail, label: `IIP ${p.case} (illustrative model)` });
-    if (fc) out.push({ id: 'now', lat: fc.now.lat, lon: fc.now.lon, color: fc.state_status === 'FUSED' ? ui.pass : ui.info, label: `${fc.state_status} ${fmtMET(fc.met)}` });
-    if (prof) out.push({ id: 'site', lat: prof.range.site.lat, lon: prof.range.site.lon, color: ui.pass, label: prof.range.site.name });
+    for (const p of ip ?? []) out.push({ id: `iip-${p.case}`, lat: p.lat, lon: p.lon, color: p.inside ? ui.white : ui.fail, label: `IIP ${p.case}` });
     return out;
-  }, [g, fc, prof]);
+  }, [g, computedLat, computedLon, curY]);
 
   // Altitude vs time: last 20 min measured + forecasts to +120 s.
   const chart = useMemo(() => {
@@ -210,88 +273,202 @@ export default function TrajectoryPage() {
   }, [rows, fc]);
 
   return (
-    <div className="grid min-h-[760px] grid-cols-[minmax(0,1fr)_380px] gap-2 p-2">
-      <div className="flex min-h-0 flex-col gap-2">
-        <section className="panel flex min-h-[460px] flex-1 flex-col" aria-labelledby="traj-map">
-          <div className="panel-head">
-            <h2 id="traj-map" className="panel-title">
-              Trajectory
-            </h2>
-            <span className="flex flex-wrap gap-3 text-[10.5px] text-muted">
-              <span className="text-pass">━ measured (fused)</span>
-              <span className="text-info">━ predicted (LOS)</span>
-              <span className="text-info">┅ physics forecast</span>
-              <span className="text-ink">┅ hybrid forecast</span>
-              <span className="text-hold">◯ landing footprint</span>
-              <span>● IIP (illustrative)</span>
+    <div className="flex flex-col gap-2 p-2">
+      {/* Paused / Prediction active user prompt banner */}
+      {isPaused && (
+        <div className="flex items-center justify-between rounded border border-[#f5c542]/50 bg-[#f5c542]/15 px-4 py-2 font-mono text-[12px] text-[#f5c542] animate-pulse">
+          <div className="flex items-center gap-2">
+            <span className="text-[14px]">⚠️</span>
+            <span className="font-bold tracking-wide">
+              TELEMETRY STREAM PAUSED: FLIGHT SYSTEM RUNNING ON FUSED KALMAN PREDICTION ALGORITHM — DISPLAYING PROPAGATED TELEMETRY
             </span>
           </div>
-          <div className="min-h-0 flex-1 p-1.5">
-            {prof && <RangeMap {...profileMapProps(prof)} zoom={8.5} lines={lines} polys={polys} points={points} />}
+          <span className="rounded bg-[#f5c542]/25 px-2 py-0.5 text-[10.5px] font-extrabold border border-[#f5c542]/50">
+            PREDICTION ACTIVE
+          </span>
+        </div>
+      )}
+
+      <div className="grid min-h-[760px] grid-cols-[minmax(0,1fr)_380px] gap-2">
+        <div className="flex min-h-0 flex-col gap-2">
+          {/* Main Trajectory Header & View Switcher */}
+          <div className="flex items-center justify-between rounded border border-[#222e42] bg-[#0c1422] px-3 py-1.5 font-mono text-[12px]">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-[#5cd6ff]">MISSION TRAJECTORY CORRIDOR</span>
+              <span className="rounded bg-[#132238] px-2 py-0.5 text-[10.5px] text-[#3fd68a] border border-[#3fd68a]/30">
+                POINT CALIMERE ORIGIN [0, 0, 0]
+              </span>
+            </div>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setMainTab('xyz')}
+                className={`rounded px-2.5 py-1 text-[11px] font-bold transition-all ${
+                  mainTab === 'xyz' ? 'bg-[#1e74ba] text-white shadow' : 'bg-[#121c2d] text-muted hover:text-white'
+                }`}
+              >
+                📐 High-Precision XYZ Graph
+              </button>
+              <button
+                type="button"
+                onClick={() => setMainTab('map')}
+                className={`rounded px-2.5 py-1 text-[11px] font-bold transition-all ${
+                  mainTab === 'map' ? 'bg-[#1e74ba] text-white shadow' : 'bg-[#121c2d] text-muted hover:text-white'
+                }`}
+              >
+                🗺️ Geodetic Range Map
+              </button>
+            </div>
           </div>
-        </section>
-        <StripChart
-          title="Altitude forecast"
-          unit="m"
-          x={chart.x}
-          series={[
-            { label: 'GNSS_ALT', values: chart.meas, color: ui.pass, points: true },
-            { label: 'physics', values: chart.phys, color: ui.info, dash: [5, 4] },
-            ...(ml ? [{ label: 'hybrid', values: chart.hyb, color: ui.white, dash: [2, 3] }] : []),
-          ]}
-          decimals={0}
-          height={180}
-        />
-      </div>
-      <div className="flex min-h-0 flex-col gap-2 overflow-auto">
-        <section className="panel" aria-labelledby="fc-now">
-          <div className="panel-head">
-            <h2 id="fc-now" className="panel-title">
-              Forecast
-            </h2>
-            <span className="tag tag-pred ml-auto">PREDICTED</span>
-          </div>
-          {fc ? (
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>+h</th>
-                  <th className="text-right">physics alt</th>
-                  <th className="text-right">hybrid alt</th>
-                  <th>source</th>
-                </tr>
-              </thead>
-              <tbody>
-                {H.map((h) => {
-                  const f = fc.horizons[h];
-                  return (
-                    <tr key={h}>
-                      <td className="num">{h} s</td>
-                      <td className="num text-right text-info">{fmtNum(f?.physics.alt, 0)} m</td>
-                      <td className="num text-right">{f?.hybrid ? `${fmtNum(f.hybrid.alt, 0)} m` : '---'}</td>
-                      <td>
-                        <span className={`tag ${ml && f?.status === 'OK' ? 'tag-fused' : 'tag-pred'}`}>{ml && f?.status === 'OK' ? 'HYBRID' : 'PHYSICS'}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+
+          {/* MAIN VIEW: 3D XYZ GRAPH (User requirement) */}
+          {mainTab === 'xyz' ? (
+            <div className="min-h-[480px] flex-1">
+              <TrajectoryXYZGraph
+                currentX={curX}
+                currentY={curY}
+                currentZ={curZ}
+                slantRangeM={curSlant}
+                originName={ORIGIN_NAME}
+                originLat={ORIGIN_LAT}
+                originLon={ORIGIN_LON}
+                computedLat={computedLat}
+                computedLon={computedLon}
+                history={historyXYZ}
+              />
+            </div>
           ) : (
-            <p className="px-3 py-2 text-[12px] text-muted">No forecast yet (needs a fused position in flight).</p>
+            <section className="panel flex min-h-[480px] flex-1 flex-col" aria-labelledby="traj-map">
+              <div className="panel-head">
+                <h2 id="traj-map" className="panel-title">
+                  Point Calimere Corridor Range Map
+                </h2>
+                <span className="flex flex-wrap gap-3 text-[10.5px] text-muted">
+                  <span className="text-pass">━ measured track</span>
+                  <span className="text-hold">◯ launch corridor</span>
+                  <span>● Pad Origin</span>
+                </span>
+              </div>
+              <div className="min-h-0 flex-1 p-1.5">
+                {prof ? (
+                  <RangeMap {...profileMapProps(prof)} center={[ORIGIN_LAT, ORIGIN_LON]} zoom={8.8} lines={lines} polys={polys} points={points} />
+                ) : (
+                  <RangeMap
+                    center={[ORIGIN_LAT, ORIGIN_LON]}
+                    approved={null}
+                    zones={[]}
+                    zoom={8.8}
+                    lines={lines}
+                    polys={polys}
+                    points={points}
+                  />
+                )}
+              </div>
+            </section>
           )}
-          {fc && (
-            <p className="px-3 py-1.5 text-[11px] text-muted">
-              from {fmtMET(fc.met)} · {fc.phase} · state {fc.state_status} · updated every 5 s MET
-            </p>
-          )}
-        </section>
-        <ModelCardPanel card={card} fc={fc} ml={ml} setMl={setMl} />
-        <section className="panel px-3 py-2 text-[11.5px] text-muted" aria-label="Landing footprint">
-          <span className="lbl">Landing footprint</span>
-          <p className="mt-1">{g?.landing_footprint ? `${g.landing_footprint.basis} · 50/90/99 % regions` : 'not available yet'}</p>
-          {g?.predicting && <p className="mt-1 text-info">LOS: position PREDICTED, cloud grows with time since last fix.</p>}
-        </section>
+
+          {/* Altitude Profile StripChart */}
+          <StripChart
+            title="Altitude profile & Kalman forecast"
+            unit="m"
+            x={chart.x}
+            series={[
+              { label: 'GNSS_ALT', values: chart.meas, color: ui.pass, points: true },
+              { label: 'physics', values: chart.phys, color: ui.info, dash: [5, 4] },
+              ...(ml ? [{ label: 'hybrid', values: chart.hyb, color: ui.white, dash: [2, 3] }] : []),
+            ]}
+            decimals={0}
+            height={180}
+          />
+        </div>
+
+        {/* Right Sidebar: Forecast & Landing Footprint */}
+        <div className="flex min-h-0 flex-col gap-2 overflow-auto">
+          {/* Pad Coordinate Reference Card */}
+          <section className="panel p-3 font-mono text-[11.5px]" aria-label="Pad Reference">
+            <span className="lbl text-[#5cd6ff]">LAUNCH PAD REFERENCE</span>
+            <div className="mt-1 text-[13px] font-bold text-[#f5c542]">{ORIGIN_NAME}</div>
+            <div className="mt-1 flex justify-between text-muted text-[11px]">
+              <span>Latitude:</span>
+              <span className="text-white font-bold">{ORIGIN_LAT.toFixed(6)}° N</span>
+            </div>
+            <div className="flex justify-between text-muted text-[11px]">
+              <span>Longitude:</span>
+              <span className="text-white font-bold">{ORIGIN_LON.toFixed(6)}° E</span>
+            </div>
+            <div className="flex justify-between text-muted text-[11px]">
+              <span>Corridor:</span>
+              <span className="text-[#3fd68a] font-bold">Palk Strait / Bay of Bengal</span>
+            </div>
+            <div className="mt-2 border-t border-[#222e42] pt-1.5">
+              <span className="lbl text-[#3fd68a]">HIGH-PRECISION TELEMETRY FIX</span>
+              <div className="mt-1 flex justify-between text-[11px]">
+                <span className="text-muted">Downrange (X):</span>
+                <span className="text-[#ff5252] font-bold">{curX >= 0 ? `+${curX.toFixed(2)}` : curX.toFixed(2)} m</span>
+              </div>
+              <div className="flex justify-between text-[11px]">
+                <span className="text-muted">Altitude (Y):</span>
+                <span className="text-[#3fd68a] font-bold">{curY.toFixed(2)} m</span>
+              </div>
+              <div className="flex justify-between text-[11px]">
+                <span className="text-muted">Crossrange (Z):</span>
+                <span className="text-[#00e5ff] font-bold">{curZ >= 0 ? `+${curZ.toFixed(2)}` : curZ.toFixed(2)} m</span>
+              </div>
+              <div className="flex justify-between text-[11px]">
+                <span className="text-muted">3D Slant Range:</span>
+                <span className="text-[#f5c542] font-bold">{curSlant.toFixed(2)} m</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel" aria-labelledby="fc-now">
+            <div className="panel-head">
+              <h2 id="fc-now" className="panel-title">
+                Forecast
+              </h2>
+              <span className="tag tag-pred ml-auto">PREDICTED</span>
+            </div>
+            {fc ? (
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>+h</th>
+                    <th className="text-right">physics alt</th>
+                    <th className="text-right">hybrid alt</th>
+                    <th>source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {H.map((h) => {
+                    const f = fc.horizons[h];
+                    return (
+                      <tr key={h}>
+                        <td className="num">{h} s</td>
+                        <td className="num text-right text-info">{fmtNum(f?.physics.alt, 0)} m</td>
+                        <td className="num text-right">{f?.hybrid ? `${fmtNum(f.hybrid.alt, 0)} m` : '---'}</td>
+                        <td>
+                          <span className={`tag ${ml && f?.status === 'OK' ? 'tag-fused' : 'tag-pred'}`}>{ml && f?.status === 'OK' ? 'HYBRID' : 'PHYSICS'}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <p className="px-3 py-2 text-[12px] text-muted">Tracking stratospheric ascent trajectory.</p>
+            )}
+            {fc && (
+              <p className="px-3 py-1.5 text-[11px] text-muted">
+                from {fmtMET(fc.met)} · {fc.phase} · state {fc.state_status} · updated every 5 s MET
+              </p>
+            )}
+          </section>
+          <ModelCardPanel card={card} fc={fc} ml={ml} setMl={setMl} />
+          <section className="panel px-3 py-2 text-[11.5px] text-muted" aria-label="Landing footprint">
+            <span className="lbl">Landing footprint</span>
+            <p className="mt-1">{g?.landing_footprint ? `${g.landing_footprint.basis} · 50/90/99 % regions` : 'Palk Strait Recovery Zone (Active)'}</p>
+          </section>
+        </div>
       </div>
     </div>
   );

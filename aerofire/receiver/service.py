@@ -70,7 +70,7 @@ class Receiver:
                               "forecaster": PhysicsForecaster(cfg, fc), "hybrid": HybridPredictor()}
         return self.preflight_ctx
 
-    def on_datagram(self, data: bytes, recv_utc: float | None = None) -> str:
+    def on_datagram(self, data: bytes, recv_utc: float | None = None, addr: str | None = None) -> str:
         recv_utc = self.clock() if recv_utc is None else recv_utc
         try:
             frame = icd.decode(data)
@@ -79,7 +79,10 @@ class Receiver:
                 self.rejected += 1
                 self.last_reject = str(exc)
             return "rejected"
-        return self.on_frame(frame, recv_utc)
+        res = self.on_frame(frame, recv_utc)
+        if addr and self.current is not None:
+            self.current.sender_addr = addr
+        return res
 
     def on_frame(self, frame: dict[str, Any], recv_utc: float) -> str:
         with self.lock:
@@ -87,7 +90,7 @@ class Receiver:
             s = self.sessions.get(mid)
             if s is None:
                 s = GroundSession(self.cfg, self.forecast(), mid, source=self.mode, sessions_dir=self.sessions_dir,
-                                  record=self.mode != "PLAYBACK", preflight_ctx=self.prepare())
+                                  record=self.mode != "PLAYBACK", preflight_ctx=self.prepare(), lock=self.lock)
                 self.sessions[mid] = s
                 self.current = s
             return s.ingest(frame, recv_utc)
@@ -113,12 +116,12 @@ class Receiver:
 
         class Proto(asyncio.DatagramProtocol):
             def datagram_received(self, data: bytes, addr: Any) -> None:  # noqa: D401
-                inbox.put((data, time.time()))
+                inbox.put((data, time.time(), addr[0] if addr else None))
 
         def worker() -> None:
             while True:
-                data, utc = inbox.get()
-                self.on_datagram(data, utc)
+                data, utc, addr = inbox.get()
+                self.on_datagram(data, utc, addr)
 
         self.mode, self.listen = "LIVE UDP", f"udp://{host}:{port}"
         await asyncio.to_thread(self.prepare)

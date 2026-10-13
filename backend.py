@@ -32,12 +32,20 @@ if __name__ == "__main__":
     p.add_argument("--udp-host", default="0.0.0.0", help="telemetry receive address")
     p.add_argument("--udp-port", type=int, default=5600)
     p.add_argument("--no-udp", action="store_true", help="do not listen for telemetry")
+    p.add_argument("--tcp-host", default=os.environ.get("AEROFIRE_TCP_HOST", "0.0.0.0"), help="TCP digital twin telemetry bind address")
+    p.add_argument("--tcp-port", type=int, default=int(os.environ.get("AEROFIRE_TCP_PORT", "65432")), help="TCP telemetry port")
+    p.add_argument("--no-tcp", action="store_true", help="do not listen for TCP digital twin telemetry")
     p.add_argument("--playback", default=None, help="replay a recorded session file instead of listening")
     p.add_argument("--playback-speed", type=float, default=1.0)
     p.add_argument("--snapshot", action="store_true", help="use the recorded forecast atmosphere")
     a = p.parse_args()
     if a.snapshot:
         os.environ["AEROFIRE_ATMOSPHERE"] = "snapshot"
+    if a.no_tcp:
+        os.environ["AEROFIRE_NO_TCP"] = "1"
+    else:
+        os.environ["AEROFIRE_TCP_HOST"] = a.tcp_host
+        os.environ["AEROFIRE_TCP_PORT"] = str(a.tcp_port)
     if a.playback:
         os.environ.update(AEROFIRE_RECEIVER="playback", AEROFIRE_PLAYBACK=a.playback, AEROFIRE_PLAYBACK_SPEED=str(a.playback_speed))
     elif not a.no_udp:

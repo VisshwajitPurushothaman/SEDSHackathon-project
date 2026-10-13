@@ -22,10 +22,10 @@ constants:
   wgs84_f: 0.0033528106647474805  # WGS84 flattening 1/298.257223563 [source: NIMA TR8350.2]
 
 site:
-  name: "Illustrative launch site near Sriharikota"   # [ASSUMPTION] default from the original backend
-  lat_deg: 13.72              # [ASSUMPTION] launch latitude (original backend default)
-  lon_deg: 80.23              # [ASSUMPTION] launch longitude (original backend default)
-  elevation_m: 5.0            # [ASSUMPTION] launch pad elevation
+  name: "Point Calimere Bird Sanctuary (Tamil Nadu)"
+  lat_deg: 10.301500          # Point Calimere Bird Sanctuary, Kodiakkarai, Tamil Nadu
+  lon_deg: 79.851200          # Point Calimere Bird Sanctuary, Kodiakkarai, Tamil Nadu
+  elevation_m: 2.0            # Launch pad coastal elevation (m)
 
 atmosphere:
   # Live data: Open-Meteo forecast API, pressure-level variables.
@@ -152,9 +152,9 @@ link:
   antenna_gain_db: 9.0        # [ASSUMPTION] sum of TX and RX antenna gains
   freq_mhz: 2400.0            # [ASSUMPTION] S-band
   rssi_sigma_db: 2.0          # [ASSUMPTION] fading
-  station_lat_deg: 13.72      # [ASSUMPTION] ground station at the launch site
-  station_lon_deg: 80.23
-  station_alt_m: 10.0
+  station_lat_deg: 10.301500  # ground station at Point Calimere launch site
+  station_lon_deg: 79.851200
+  station_alt_m: 2.0
 
 recovery:
   # Post-flight download of records the ground did not receive live.

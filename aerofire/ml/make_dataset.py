@@ -64,7 +64,7 @@ def one_mission(seed: int) -> dict[str, np.ndarray]:
     var = sample_variability(cfg, np.random.default_rng(seed))
     sim = _NoSwingSim(cfg, prof, Faults(), seed=seed, variability=var)
     sensors = SensorSuite(cfg, np.random.default_rng(seed + 1), Faults())
-    ground = _LightGround(cfg, prof)
+    ground = _LightGround(cfg, prof, reorder_delay_s=1.0)  # identical to the live receiver (aerofire/receiver/session.py)
     fc = PhysicsForecaster(cfg, prof)
     truth: dict[float, tuple[float, float, float]] = {}
     rows = []
