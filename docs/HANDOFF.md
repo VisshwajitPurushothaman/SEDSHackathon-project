@@ -112,13 +112,23 @@ cd frontend && npx tsc -b --noEmit && npx vitest run
 .venv/Scripts/python backend.py --playback data/demo_sessions/nominal.jsonl.gz --playback-speed 10
 ```
 
+## Audit (Phase A, diagnosis only)
+
+Reports in `docs/audit/`: ARCHITECTURE_AS_BUILT, FLUCTUATION_REPORT, REALITY_TABLE, ML_AUDIT,
+PHYSICS_CHECK. Scripts in `tools/audit/` (api_tap, ui_tap.mjs, link_probe, fluctuation_report,
+test_sender, ml_audit, physics_check). No application code changed in Phase A.
+
+Headline: Laptop A sends TCP (port 65432) and interleaves three streams (live, a frozen packet, and
+zero-time packets) over a new connection per packet; the TCP receiver keeps "latest packet wins", so
+values flip by up to 18 km. The TCP path bypasses the estimator, forecast and ML, and contains hard-coded
+values (TANK_P from time, rate 2.0 Hz, loss 0 %, MEASURED/NOMINAL labels, a fixed post-flight report with
+pre-signed closure). The ICD/UDP path is real. Config drift: the site moved to 10.30 N but the approved
+area, range zones, snapshot atmosphere and ML data did not (impact gate cannot pass; 1 test fails).
+
 ## Status
 
-- Steps 1-5 done. pytest: 194 passed + 1 fixed (attribute collision) then the two affected files
-  re-run green; vitest 5; build passes; console.spec 7 passed.
-- Next exact step: Step 6 POST-FLIGHT: progressive recovery from Laptop A `/recover` (every 10th
-  first, HMAC verified, retries, lost list) into the session; three histories (live, RTS
-  reconstruction via existing `rts_smooth`, truth via `/truth` only when grading enabled); reports
-  (limit violations, predicted vs actual, requirements, fault timeline with delays, forecast
-  scorecard from `session.forecast_log`, landing error vs footprint); exports (.jsonl, CSV per
-  subsystem, report JSON + SHA-256) and closure checklist. Reuse ideas from `frontend/src/postflight`.
+- Steps 1-5 committed; Step 6 (post-flight) was swept into teammate commit `87458be` untested.
+- Phase A audit committed. **Waiting for the user's "go"** before Phase B, and for Laptop A's code in
+  `external/laptopA/` (sender-side cause of the three streams).
+- Next exact step after "go": Phase B.1 link/fluctuation fix (one stream, sequence/MET monotonicity,
+  measured link stats, TCP packets routed through the channel mapping into the estimator).

@@ -13,3 +13,7 @@ data/vehicle/
 
 # ML dataset (regenerate with python -m aerofire.ml.make_dataset)
 data/ml/
+
+# Audit captures: large raw logs stay local (summaries and evidence files are committed)
+data/audit/backend_out.jsonl
+data/audit/raw_capture.jsonl

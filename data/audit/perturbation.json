@@ -1,0 +1,699 @@
+{
+ "tcp": {
+  "ramp": [
+   {
+    "sent_alt": 1000.0,
+    "GNSS_ALT": 1002.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 0.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1010.0,
+    "GNSS_ALT": 1012.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 0.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1020.0,
+    "GNSS_ALT": 1022.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1030.0,
+    "GNSS_ALT": 1032.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1040.0,
+    "GNSS_ALT": 1042.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 2.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1050.0,
+    "GNSS_ALT": 1052.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 2.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1060.0,
+    "GNSS_ALT": 1062.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 3.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1070.0,
+    "GNSS_ALT": 1072.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 3.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1080.0,
+    "GNSS_ALT": 1082.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 4.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1090.0,
+    "GNSS_ALT": 1092.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 4.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1100.0,
+    "GNSS_ALT": 1102.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 5.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 1110.0,
+    "GNSS_ALT": 1112.0,
+    "TANK_P": 250.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 5.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   }
+  ],
+  "constant": [
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 600.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 600.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 601.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 601.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 602.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 602.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 603.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 603.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 604.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 604.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 605.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 247.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 605.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   }
+  ],
+  "step": [
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1200.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1200.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1201.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1201.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1202.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1202.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 8000.0,
+    "GNSS_ALT": 8002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1203.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 8000.0,
+    "GNSS_ALT": 8002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1203.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 8000.0,
+    "GNSS_ALT": 8002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1204.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 8000.0,
+    "GNSS_ALT": 8002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1204.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 8000.0,
+    "GNSS_ALT": 8002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1205.0,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   },
+   {
+    "sent_alt": 8000.0,
+    "GNSS_ALT": 8002.0,
+    "TANK_P": 244.0,
+    "GNSS_VU": 0.0,
+    "status": "MEASURED",
+    "met": 1205.5,
+    "rate_hz": 2.0,
+    "loss_pct": 0.0,
+    "ground": false,
+    "forecast": false
+   }
+  ]
+ },
+ "udp": {
+  "constant": [
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": null,
+    "fused_status": null,
+    "forecast_phys_30": null,
+    "forecast_status_30": null,
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 5000.0,
+    "GNSS_ALT": 5000.0,
+    "TANK_P": 200.0,
+    "fused_alt": 5000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 5000.0,
+    "forecast_status_30": "OK",
+    "source": "LIVE UDP"
+   }
+  ],
+  "ramp": [
+   {
+    "sent_alt": 1000.0,
+    "GNSS_ALT": 1000.0,
+    "TANK_P": 200.0,
+    "fused_alt": null,
+    "fused_status": null,
+    "forecast_phys_30": null,
+    "forecast_status_30": null,
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1010.0,
+    "GNSS_ALT": 1010.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1000.0,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1000.0,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1020.0,
+    "GNSS_ALT": 1020.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1012.4152123806388,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1000.0,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1030.0,
+    "GNSS_ALT": 1030.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1025.9345132823262,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1000.0,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1040.0,
+    "GNSS_ALT": 1040.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1037.6948955040712,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1000.0,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1050.0,
+    "GNSS_ALT": 1050.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1048.5625974859229,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1000.0,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1060.0,
+    "GNSS_ALT": 1060.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1059.0365238908369,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1350.966674086966,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1070.0,
+    "GNSS_ALT": 1070.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1069.3217028411311,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1350.966674086966,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1080.0,
+    "GNSS_ALT": 1080.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1079.5073946404873,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1350.966674086966,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1090.0,
+    "GNSS_ALT": 1090.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1089.6361736296067,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1350.966674086966,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1100.0,
+    "GNSS_ALT": 1100.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1099.73002216498,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1350.966674086966,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   },
+   {
+    "sent_alt": 1110.0,
+    "GNSS_ALT": 1110.0,
+    "TANK_P": 200.0,
+    "fused_alt": 1109.8010134754484,
+    "fused_status": "FUSED",
+    "forecast_phys_30": 1409.1456942818843,
+    "forecast_status_30": "OUT_OF_RANGE",
+    "source": "LIVE UDP"
+   }
+  ]
+ },
+ "verdict": {
+  "TCP GNSS_ALT follows input (ramp)": true,
+  "TCP TANK_P constant while no tank input": true,
+  "TCP TANK_P same across cases with identical (absent) tank input": false,
+  "TCP GNSS_VU reflects the ramp (+20 m/s)": false,
+  "TCP link rate_hz measured (not constant 2.0)": false,
+  "TCP feeds the estimator (ground frame present)": false,
+  "TCP feeds the forecast": false,
+  "UDP fused altitude constant for constant input": true,
+  "UDP forecast responds to the ramp": true
+ }
+}
