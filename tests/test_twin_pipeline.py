@@ -59,12 +59,26 @@ def test_twin_stream_reaches_the_estimator_with_measured_link_and_no_signature()
     assert set(snap["ground"]["gates"]) == {"float", "nav", "motor", "swing", "impact"}
     L = snap["link"]
     assert L["integrity"].startswith("none") and L["hmac_failures"] == 0 and L["latency_s"] is None
-    assert L["loss_pct"] == pytest.approx(10.0, abs=1.5) and len(L["gaps"]) >= 20
+    assert L["loss_pct"] == pytest.approx(10.0, abs=1.5) and L["loss_basis"].startswith("receipts vs the declared 0.5 s")
+    assert len(L["gaps_met"]) >= 20 and all(g[2] > 0.75 for g in L["gaps_met"])
     rows = {c["mnemonic"]: c for c in snap["channels"]}
     assert rows["GNSS_ALT"]["status"] == "STALE" or rows["GNSS_ALT"]["status"] == "MEASURED"
     assert rows["TANK_P"]["status"] == "UNKNOWN" and rows["TANK_P"]["value"] is None  # no tank data in twin packets
     assert rows["FC_PHASE_RAW"]["value"] == "STRATOSPHERIC_ASCENT"
     assert all(a["key"] != "origin" for a in s.alarms)  # packet origin matches the config site
+
+
+def test_time_compressed_sender_is_not_reported_as_loss():
+    """Laptop A ran at 1.8x real time on 13 Oct: MET +1.0 s per 0.5 s ping. That is not packet loss."""
+    r = Receiver(CFG, lambda: PROFILE)
+    r.mode = "PLAYBACK"
+    f = TwinFilter()
+    for i in range(120):
+        p = twin(2_503_000 + 1000 * i, 3000.0 + 9.0 * i)
+        if f.offer(p, "a", 100.0 + 0.5 * i)[0]:
+            r.on_twin_packet(p, "a", 100.0 + 0.5 * i, f)
+    L = r.current.link(160.0)
+    assert L["loss_pct"] == pytest.approx(0.0, abs=1.0) and L["gaps_met"] == []
 
 
 def test_origin_mismatch_raises_an_alarm():

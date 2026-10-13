@@ -170,9 +170,16 @@ area, range zones, snapshot atmosphere and ML data did not (impact gate cannot p
   target/horizons with CIs excluding 0 (alt@30 s: persistence 8.5 m, physics 14.8 m, hybrid 2.0 m, CI
   6.41-6.60 m) -> default, card label "validated on simulated test missions (beats persistence) - simulator
   data only". Horizontal physics now beats persistence (east@30 s 6.8 vs 7.7 m).
+- B.7 partial: twin loss now measured from receipts vs the declared 0.5 s ping interval (A ran 1.8x real
+  time, so MET slots over-counted loss); twin seq = accepted index. Live two-laptop check: B locks each new
+  A mission, frozen/zero streams rejected, fused state FUSED, hybrid forecast OK at 30/60/120 s. A
+  PREDICTED/STATE_NOT_FUSED forecast appears only during genuine gaps (>5 s without a fix): correct fallback.
+  A2 live capture after the fix: data/audit/backend_out.jsonl, ui_values.jsonl (run
+  tools/audit/fluctuation_report.py for the numbers).
 
 ## Status
 
-- Next exact step: B.7 verification: two-laptop run (needs Laptop A advancing: currently holding at MET
-  3544.4 s), A1/A2 re-run, perturbation test, full suites, PLAYBACK recording, README firewall steps,
-  DEMO_SCRIPT.md, LIMITS.md.
+- NOT done (user's credit limit): full suite re-run after B.7 (receiver tests 20 passed), README firewall
+  section (Private profile + one inbound TCP 65432 rule), DEMO_SCRIPT.md, LIMITS.md update, PLAYBACK
+  recording of a live twin session (live sessions are already written to data/sessions/twin-*.jsonl).
+- Next exact step: run tools/audit/fluctuation_report.py, then the items above.

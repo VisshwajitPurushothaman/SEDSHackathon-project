@@ -73,6 +73,8 @@ class GroundSession:
         self.duplicates = self.out_of_order = 0
         self.unsigned = 0
         self.min_seq: int | None = None
+        self.cadence_interval: float | None = None  # twin: the sender's declared ping interval
+        self.cadence_gaps: list[list[float]] = []  # twin: [met_before, met_after, silence_s]
         self.hmac_failures: list[int] = []
         self.chain_breaks: list[int] = []
         self.arrivals: deque[float] = deque()
@@ -128,6 +130,10 @@ class GroundSession:
             self._fh.flush()
         if unsigned:
             self.unsigned += 1
+            if frame.get("interval_s"):
+                self.cadence_interval = float(frame["interval_s"])
+                if self.last_rx_utc is not None and recv_utc - self.last_rx_utc > 1.5 * self.cadence_interval:
+                    self.cadence_gaps.append([self.last_met, float(frame["met_s"]), recv_utc - self.last_rx_utc])
         elif not ok:
             self.hmac_failures.append(seq)
             self.log(recv_utc, "system", "HMAC FAIL", {"seq": seq})
@@ -399,6 +405,12 @@ class GroundSession:
         lo = self.min_seq or 0
         expected = self.max_seq - lo + 1 if self.max_seq >= 0 else 0
         missing = expected - len(self.frames)
+        loss_basis = "missing sequence numbers"
+        if self.cadence_interval and self.first_rx_utc is not None and self.last_rx_utc is not None:
+            # No packet counter in the twin protocol: receipts vs the sender's declared ping interval.
+            expected = int(round((self.last_rx_utc - self.first_rx_utc) / self.cadence_interval)) + 1
+            missing = max(0, expected - len(self.frames))
+            loss_basis = f"receipts vs the declared {self.cadence_interval:g} s ping interval (no packet counter in the twin protocol)"
         return {
             "aos": self.aos and self.last_rx_utc is not None and now_utc - self.last_rx_utc <= LOS_AFTER_S,
             "last_frame_age_s": None if self.last_rx_utc is None else now_utc - self.last_rx_utc,
@@ -411,7 +423,8 @@ class GroundSession:
             "duplicates": self.duplicates, "out_of_order": self.out_of_order,
             "hmac_failures": len(self.hmac_failures), "chain_breaks": len(self.chain_breaks),
             "integrity": "none (unsigned twin protocol)" if self.unsigned else "HMAC-SHA256 chain (demo key)",
-            "unsigned_frames": self.unsigned, "gaps": self.gaps(), "los_periods": self.los_periods, "time_scale": self.time_scale,
+            "unsigned_frames": self.unsigned, "loss_basis": loss_basis,
+            "gaps": [] if self.cadence_interval else self.gaps(), "gaps_met": self.cadence_gaps[-50:], "los_periods": self.los_periods, "time_scale": self.time_scale,
         }
 
     def gaps(self, limit: int = 200) -> list[list[int]]:

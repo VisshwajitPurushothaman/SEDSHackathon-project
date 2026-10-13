@@ -56,7 +56,9 @@ RAW_CH = {
     "wind_y": "environmental_sensors.effective_wind_vector_mps.1",
 }
 API_CH = {"GNSS_ALT": "alt_m", "POS_X": "x_downrange_m", "POS_Z": "z_crossrange_m", "BARO_P": "baro_hpa", "AIR_T": "air_t_c",
-          "IMU_TILT": "pitch_deg", "GNSS_VU": "wind_y", "TANK_P": None}
+          "IMU_TILT": "pitch_deg", "GNSS_VU": "wind_y", "TANK_P": None,
+          # names after Phase B (one pipeline)
+          "POS_DOWNRANGE": "x_downrange_m", "POS_CROSSRANGE": "z_crossrange_m", "IMU_PITCH": "pitch_deg", "fused_altitude": None}
 
 
 def main() -> int:
@@ -111,7 +113,7 @@ def main() -> int:
         for m_ in API_CH:
             series, last = [], object()
             for s in snaps:
-                v = next((c["value"] for c in s.get("channels") or [] if c["mnemonic"] == m_), None)
+                v = ((s.get("ground") or {}).get("estimates") or {}).get("altitude", {}).get("value") if m_ == "fused_altitude" else                     next((c["value"] for c in s.get("channels") or [] if c["mnemonic"] == m_), None)
                 if v != last:
                     series.append(v)
                     last = v

@@ -35,7 +35,7 @@ def test_interleaved_streams_from_the_raw_capture_are_reduced_to_one():
     # not_locked: cycles 0-1 (frozen, live, frozen) = 6, plus the first frozen of cycle 2; backward: 1 + 2 x 37
     assert st["rejected"] == {"not_locked": 7, "zero_time": 40, "backward": 75}
     assert st["accepted"] == 38 and abs(st["rate_hz"] - 2.0) < 0.15
-    assert [f.seq(pkt(t)) for t in (1_000, 1_500, 3_000)] == [2, 3, 6]  # MET slot at 0.5 s
+    assert f.seq(pkt(9_999_999)) == st["accepted"]  # receiver-side index of accepted packets (no sender counter)
 
 
 def test_restarted_mission_relocks_only_after_the_old_stream_stalls():

@@ -127,8 +127,10 @@ class TwinFilter:
         return True, "new_epoch" if new_epoch else "ok"
 
     def seq(self, p: dict[str, Any]) -> int:
-        """Sequence number = MET slot index at the sender's ping interval (gaps = missing slots)."""
-        return int(round(met_ms(p) / (self.interval * 1000.0)))
+        """Receiver-side sequence number = index of the accepted packet. The twin protocol has no packet counter
+        and the sender may run time-compressed (MET advanced 1.8 s per 1.0 s wall on 13 Oct), so MET slots are
+        not a valid loss basis; the session measures loss from receipts vs the declared ping interval instead."""
+        return self.accepted
 
     def stats(self, now: float | None = None) -> dict[str, Any]:
         now = time.time() if now is None else now
@@ -248,4 +250,5 @@ def twin_channels(p: dict[str, Any], prev_phase: str | None) -> tuple[dict[str, 
 def twin_frame(p: dict[str, Any], mission_id: str, seq: int, ch: dict[str, Any]) -> dict[str, Any]:
     """An ICD-shaped frame for GroundSession. Unsigned: the twin protocol carries no HMAC (integrity 'none')."""
     return {"v": 1, "mission_id": mission_id, "seq": seq, "met_s": met_ms(p) / 1000.0, "utc_sent": None, "time_scale": 1.0,
-            "ch": ch, "prev_hash": "", "hash": "", "integrity": "none", "source": "tcp-twin"}
+            "ch": ch, "prev_hash": "", "hash": "", "integrity": "none", "source": "tcp-twin",
+            "interval_s": interval_s(p)}
