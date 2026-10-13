@@ -70,6 +70,8 @@ class GroundSession:
         self.frames: dict[int, dict[str, Any]] = {}  # seq -> frame held (live; recovered frames are added post-flight)
         self.max_seq = -1
         self.duplicates = self.out_of_order = 0
+        self.unsigned = 0
+        self.min_seq: int | None = None
         self.hmac_failures: list[int] = []
         self.chain_breaks: list[int] = []
         self.arrivals: deque[float] = deque()
@@ -117,12 +119,15 @@ class GroundSession:
     def ingest(self, frame: dict[str, Any], recv_utc: float) -> str:
         """Accept one decoded frame. Returns 'ok', 'duplicate' or 'hmac_fail'."""
         seq = frame["seq"]
-        ok = icd.verify(self.key, frame)
+        unsigned = frame.get("integrity") == "none"  # the twin protocol carries no HMAC: never shown as verified
+        ok = None if unsigned else icd.verify(self.key, frame)
         if self._fh:
             self._fh.write(json.dumps({**{k: v for k, v in frame.items() if k != "rx"}, "rx": {"utc": recv_utc, "hmac_ok": ok}},
                                       separators=(",", ":")) + "\n")
             self._fh.flush()
-        if not ok:
+        if unsigned:
+            self.unsigned += 1
+        elif not ok:
             self.hmac_failures.append(seq)
             self.log(recv_utc, "system", "HMAC FAIL", {"seq": seq})
             self._raise(recv_utc, "WARNING", f"hmac:{seq}", f"Frame {seq} failed HMAC: discarded", {"seq": seq})
@@ -132,16 +137,18 @@ class GroundSession:
             return "duplicate"
         if seq < self.max_seq:
             self.out_of_order += 1
-        # Chain link to neighbours already held.
+        # Chain link to neighbours already held (signed frames only).
         prev = self.frames.get(seq - 1)
         nxt = self.frames.get(seq + 1)
-        if (prev and frame["prev_hash"] != prev["hash"]) or (nxt and nxt["prev_hash"] != frame["hash"]):
+        if not unsigned and ((prev and frame["prev_hash"] != prev["hash"]) or (nxt and nxt["prev_hash"] != frame["hash"])):
             self.chain_breaks.append(seq)
             self._raise(recv_utc, "WARNING", f"chain:{seq}", f"Frame {seq} does not chain to its neighbour", {"seq": seq})
         self.frames[seq] = frame
         self.max_seq = max(self.max_seq, seq)
+        self.min_seq = seq if self.min_seq is None else min(self.min_seq, seq)
         self.time_scale = float(frame.get("time_scale") or 1.0)
-        self.deltas.append(recv_utc - frame["utc_sent"])
+        if frame.get("utc_sent") is not None:
+            self.deltas.append(recv_utc - frame["utc_sent"])
         self.arrivals.append(recv_utc)
         if self.first_rx_utc is None:
             self.first_rx_utc = recv_utc
@@ -388,7 +395,8 @@ class GroundSession:
     def link(self, now_utc: float) -> dict[str, Any]:
         while self.arrivals and self.arrivals[0] < now_utc - RATE_WINDOW_S:
             self.arrivals.popleft()
-        expected = self.max_seq + 1
+        lo = self.min_seq or 0
+        expected = self.max_seq - lo + 1 if self.max_seq >= 0 else 0
         missing = expected - len(self.frames)
         return {
             "aos": self.aos and self.last_rx_utc is not None and now_utc - self.last_rx_utc <= LOS_AFTER_S,
@@ -401,13 +409,14 @@ class GroundSession:
             "latency_note": "median(recv - sent) - min(recv - sent): the fixed clock offset between laptops cannot be separated from the minimum delay",
             "duplicates": self.duplicates, "out_of_order": self.out_of_order,
             "hmac_failures": len(self.hmac_failures), "chain_breaks": len(self.chain_breaks),
-            "gaps": self.gaps(), "los_periods": self.los_periods, "time_scale": self.time_scale,
+            "integrity": "none (unsigned twin protocol)" if self.unsigned else "HMAC-SHA256 chain (demo key)",
+            "unsigned_frames": self.unsigned, "gaps": self.gaps(), "los_periods": self.los_periods, "time_scale": self.time_scale,
         }
 
     def gaps(self, limit: int = 200) -> list[list[int]]:
         out: list[list[int]] = []
         start = None
-        for s in range(self.max_seq + 1):
+        for s in range(self.min_seq or 0, self.max_seq + 1):
             if s not in self.frames:
                 start = s if start is None else start
             elif start is not None:

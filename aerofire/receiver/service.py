@@ -26,6 +26,7 @@ from ..physics import geo
 from ..physics import rocket as Rk
 from ..telemetry import icd
 from .session import GroundSession
+from .twin import declared_origin, twin_channels, twin_frame
 
 TICK_S = 0.5
 RANGE_PATH = Path(__file__).resolve().parents[2] / "config" / "range.geojson"
@@ -46,6 +47,9 @@ class Receiver:
         self.playback_file: str | None = None
         self.playback_done = False
         self.preflight_ctx: dict[str, Any] = {}
+        self._twin_epoch: tuple | None = None
+        self._twin_mission: str | None = None
+        self._twin_phase: str | None = None
 
     def forecast(self) -> A.AtmosphereProfile:
         if self._forecast is None:
@@ -89,11 +93,41 @@ class Receiver:
             mid = frame["mission_id"]
             s = self.sessions.get(mid)
             if s is None:
-                s = GroundSession(self.cfg, self.forecast(), mid, source=self.mode, sessions_dir=self.sessions_dir,
+                s = GroundSession(self.cfg, self.forecast(), mid, source=self.mode if self.mode != "NO SOURCE" else "LIVE TCP",
+                                  sessions_dir=self.sessions_dir,
                                   record=self.mode != "PLAYBACK", preflight_ctx=self.prepare(), lock=self.lock)
                 self.sessions[mid] = s
                 self.current = s
             return s.ingest(frame, recv_utc)
+
+    def on_twin_packet(self, p: dict[str, Any], src: str, recv_utc: float, flt) -> str:
+        """An ACCEPTED Laptop A twin packet (aerofire.receiver.twin.TwinFilter) -> ICD frame -> GroundSession."""
+        with self.lock:
+            key = (flt.epoch, flt.epoch_first_met_ms)
+            if key != self._twin_epoch or self._twin_mission is None:
+                self._twin_epoch = key
+                self._twin_mission = f"twin-{p.get('device_id', 'unknown')}-e{flt.epoch}-{int((flt.epoch_first_met_ms or 0) / 1000)}"
+                self._twin_phase = None
+            prev_mode = self.mode
+            self.mode = "LIVE TCP"
+            ch, unknown_phase = twin_channels(p, self._twin_phase)
+            self._twin_phase = ch.get("FC_PHASE", self._twin_phase)
+            res = self.on_frame(twin_frame(p, self._twin_mission, flt.seq(p), ch), recv_utc)
+            s = self.sessions[self._twin_mission]
+            s.sender_addr = src
+            if s.ingested_met == twin_frame(p, "", 0, {})["met_s"] and not getattr(s, "_twin_checked", False):
+                s._twin_checked = True
+                org = declared_origin(p)
+                site = (self.cfg.site.lat_deg, self.cfg.site.lon_deg)
+                if org and (abs(org[0] - site[0]) > 0.01 or abs(org[1] - site[1]) > 0.01):
+                    s._raise(recv_utc, "WARNING", "origin", "Sender launch origin differs from the ground site config",
+                             {"sender_origin": org, "ground_site": site, "fix": "set config/mission.yaml site to the sender's origin"}, source="link")
+            if unknown_phase:
+                s._raise(recv_utc, "INFO", f"phase:{unknown_phase}", f"Unmapped twin phase '{unknown_phase}': previous phase kept",
+                         {"raw_phase": unknown_phase}, source="link")
+            if prev_mode == "PLAYBACK":
+                self.mode = prev_mode
+            return res
 
     def tick(self) -> None:
         with self.lock:
@@ -171,7 +205,7 @@ def read_lines(path: str | Path) -> list[str]:
 
 def load_session(path: str) -> list[dict[str, Any]]:
     rows = [json.loads(line) for line in read_lines(path)]
-    return [r for r in rows if r.get("rx", {}).get("hmac_ok", True)]
+    return [r for r in rows if r.get("rx", {}).get("hmac_ok", True) is not False]  # None = unsigned (twin)
 
 
 def playback_sync(receiver: Receiver, path: str) -> GroundSession:

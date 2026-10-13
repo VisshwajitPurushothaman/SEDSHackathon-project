@@ -143,3 +143,26 @@ channels:
   RKT_ALT:      {description: Rocket altitude (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}
   RKT_DR:       {description: Rocket downrange (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}
   RKT_SPD:      {description: Rocket speed (illustrative model, not validated), units: m/s, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}
+
+  # ---------------------------------------------------------------- Laptop A digital twin (TCP 65432)
+  # Mapped by aerofire/receiver/twin.py from the twin's JSON. Values as sent; no limits unless stated.
+  FC_PHASE_RAW:   {description: "Twin flight_phase as sent (mapped to FC_PHASE)", units: "", subsystem: VEHICLE, rate_hz: 2}
+  RKT_STATUS:     {description: Twin rocket status as sent, units: "", subsystem: VEHICLE, rate_hz: 2, pad: false}
+  POS_DOWNRANGE:  {description: "Twin x (downrange, east) from the launch origin", units: m, subsystem: NAV, rate_hz: 2, decimals: 1}
+  POS_ALT_PAD:    {description: "Twin y (height above the launch origin)", units: m, subsystem: NAV, rate_hz: 2, decimals: 1}
+  POS_CROSSRANGE: {description: "Twin z (crossrange, north) from the launch origin", units: m, subsystem: NAV, rate_hz: 2, decimals: 1}
+  IMU_ROLL:       {description: Twin attitude roll, units: deg, subsystem: ATT, rate_hz: 2, decimals: 2}
+  IMU_PITCH:      {description: "Twin attitude pitch (about 90 deg = nose up)", units: deg, subsystem: ATT, rate_hz: 2, decimals: 2}
+  IMU_YAW:        {description: Twin attitude yaw, units: deg, subsystem: ATT, rate_hz: 2, decimals: 2}
+  RH:             {description: Relative humidity, units: "%", subsystem: ENV, rate_hz: 2, decimals: 1}
+  WIND_X:         {description: "Twin effective wind, x component (sender frame)", units: m/s, subsystem: ENV, rate_hz: 2, decimals: 2}
+  WIND_Y:         {description: "Twin effective wind, y component (sender frame)", units: m/s, subsystem: ENV, rate_hz: 2, decimals: 2}
+  WIND_Z:         {description: "Twin effective wind, z component (sender frame)", units: m/s, subsystem: ENV, rate_hz: 2, decimals: 2}
+  BLN_DP:         {description: Balloon differential superpressure, units: Pa, subsystem: VEHICLE, rate_hz: 2, decimals: 1}
+  BLN_BURST:      {description: "Balloon burst flag (1 = burst)", units: "", subsystem: VEHICLE, rate_hz: 2, decimals: 0,
+                   limits: {default: {yellow: [null, 0.5], red: [null, 0.5], basis: "burst is an anomaly [ASSUMPTION]"}}}
+  THRUST:         {description: Rocket thrust (twin), units: N, subsystem: PROP, rate_hz: 2, decimals: 0, pad: false}
+  PROP_MASS:      {description: Rocket propellant mass (twin), units: kg, subsystem: PROP, rate_hz: 2, decimals: 1}
+  TOTAL_MASS:     {description: Vehicle total mass (twin), units: kg, subsystem: VEHICLE, rate_hz: 2, decimals: 1}
+  MACH:           {description: Mach number (twin), units: "", subsystem: VEHICLE, rate_hz: 2, decimals: 2, pad: false}
+  DYN_P:          {description: Dynamic pressure (twin), units: Pa, subsystem: VEHICLE, rate_hz: 2, decimals: 2, pad: false}

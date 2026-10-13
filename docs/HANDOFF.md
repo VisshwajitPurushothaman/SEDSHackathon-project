@@ -137,8 +137,17 @@ area, range zones, snapshot atmosphere and ML data did not (impact gate cannot p
   MET-monotonic, rejects zero-time/repeat/backward/foreign, re-lock after a 10 s stall), rejected
   packets logged to `data/sessions/twin_rejected.jsonl`, measured rate/age; removed the merge hack,
   the Point Calimere re-projection, the LEO fixture and the inject/reset endpoints.
+- B.2 done: accepted twin packets -> `twin_channels` (A's own WGS-84 position, baro, air T, tilt
+  from the accelerometer, gyro rates, attitude, balloon volume/superpressure, raw phase + mapped
+  FC_PHASE, rocket status) -> unsigned ICD-shaped frame (seq = MET slot) -> GroundSession: fused
+  state, gates, alarms, pre-flight, forecasts/ML, post-flight, session recording. Link loss/gaps from
+  MET slots; integrity shown as "none (unsigned twin protocol)"; origin mismatch alarm. Live check:
+  Laptop A is currently holding at MET 3544.4 s (SBRL_RELEASE_WINDOW) and not advancing, so B
+  correctly shows no lock (all packets rejected as not advancing).
 
 ## Status
 
-- Next exact step: B.2 route accepted twin packets through a channel mapping into GroundSession
-  (estimator, gates, forecasts, ML, post-flight); delete the TCP-only display/post-flight logic.
+- Known failing until B.3: tests/test_preflight_profile.py::test_polygon_intersection_and_range_conflicts
+  and 5 tests in tests/test_api_missions.py (all need the impact gate, broken by the site drift).
+- Next exact step: B.3 single site config (site = A's declared origin; approved area, zones and
+  atmosphere snapshot derived from the site).

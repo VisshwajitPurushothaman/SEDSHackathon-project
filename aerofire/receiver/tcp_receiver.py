@@ -107,8 +107,6 @@ class TcpReceiver:
         self.filter = TwinFilter(allowed_source=os.environ.get("AEROFIRE_TWIN_SOURCE") or None)
         self.rejected_log = Path(__file__).resolve().parents[2] / "data" / "sessions" / "twin_rejected.jsonl"
 
-        # Rolling history of packets for strip charts and trajectory
-        self.history: deque[dict[str, Any]] = deque(maxlen=3000)
 
     def start(self) -> None:
         with self.lock:
@@ -170,7 +168,6 @@ class TcpReceiver:
                         if ok:
                             self.latest_telemetry = data
                             self.has_received_live = True
-                            self.history.append({"recv_utc": recv_utc, "data": data, "source": client_str})
                         else:
                             self._log_rejected(data, client_str, recv_utc, reason)
 
@@ -274,89 +271,6 @@ class TcpReceiver:
                 "status": self.get_status(),
                 "telemetry": copy.deepcopy(self.latest_telemetry),
             }
-
-    def get_history_payload(self, since: float | None = None, max_points: int = 3000) -> dict[str, Any]:
-        """Convert rolling TCP telemetry history into strip-chart rows and map track points."""
-        with self.lock:
-            rows: list[dict[str, Any]] = []
-            track: list[dict[str, Any]] = []
-            prev_alt: float | None = None
-            prev_met: float | None = None
-
-            for item in self.history:
-                recv_utc = item.get("recv_utc", 0)
-                d = item.get("data", {})
-                ts_ms = d.get("timestamp_ms", 0)
-                met = round(ts_ms / 1000.0, 2)
-                if since is not None and met <= since:
-                    continue
-
-                gnss = d.get("gnss_coordinates", {})
-                wgs84 = gnss.get("geodetic_wgs84", {})
-                x_val = float(gnss.get("x_downrange_m", 0.0))
-                y_val = float(gnss.get("y_altitude_m") or wgs84.get("alt_m") or d.get("barometric_sensor", {}).get("derived_altitude_m", 0.0))
-                z_val = float(gnss.get("z_crossrange_m", 0.0))
-                alt_m = round(y_val, 2)
-
-                # High-precision Point Calimere Geodetic calculation
-                lat_deg = round(10.301500 + (z_val / 110609.6), 6)
-                lon_deg = round(79.851200 + (x_val / 109531.0), 6)
-
-                # Vertical velocity: numerical derivative or wind vector
-                env = d.get("environmental_sensors", {})
-                wind = env.get("effective_wind_vector_mps", [0, 0, 0])
-                vz = float(wind[1]) if len(wind) > 1 and abs(wind[1]) > 0.01 else 0.0
-
-                if abs(vz) < 0.001 and prev_alt is not None and prev_met is not None:
-                    d_met = met - prev_met
-                    if 0.05 < d_met < 10.0:
-                        vz = round((alt_m - prev_alt) / d_met, 2)
-
-                prev_alt = alt_m
-                prev_met = met
-
-                payload = d.get("payload_state", {})
-                superpress_pa = (
-                    payload.get("differential_superpressure_pa")
-                    or d.get("orbital_and_aerothermal_physics", {}).get("differential_superpressure_pa", 142.25)
-                )
-                gauge_p_hpa = round(superpress_pa / 100.0, 2)
-                # Nominal helium pressurant tank pressure 248.5 bar, slightly decreasing with MET
-                tank_p_bar = round(max(180.0, 250.0 - (met * 0.005)), 1)
-
-                rows.append({
-                    "met": met,
-                    "utc": recv_utc,
-                    "phase": d.get("flight_phase", "STRATOSPHERIC_ASCENT"),
-                    "rec": "GO_RECOMMENDED",
-                    "GNSS_ALT": alt_m,
-                    "fused_altitude": alt_m,
-                    "GNSS_VU": vz,
-                    "fused_vertical_speed": vz,
-                    "TANK_P": tank_p_bar,
-                    "GAUGE_P": gauge_p_hpa,
-                    "x": x_val,
-                    "y": alt_m,
-                    "z": z_val,
-                    "lat": lat_deg,
-                    "lon": lon_deg,
-                    "status": "MEASURED",
-                })
-                track.append({
-                    "met": met,
-                    "lat": lat_deg,
-                    "lon": lon_deg,
-                    "alt": alt_m,
-                    "status": "FUSED",
-                })
-
-            return {
-                "mission_id": "SBRL-MISSION-LIVE-01",
-                "rows": rows[-max_points:],
-                "track": track[-max_points:],
-                "los_periods": [],
-            }
-
 
 # Singleton instance shared across FastAPI and receiver service
 GLOBAL_TCP_RECEIVER = TcpReceiver()
