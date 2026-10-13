@@ -7,9 +7,9 @@ import { errors } from './helpers.mjs';
 const PAGES = [
   ['1', 'overview', 'Recent alarms', 'OVERVIEW'],
   ['2', 'preflight', 'Pre-flight checks', 'PRE-FLIGHT'],
-  ['3', 'flight', 'Telemetry', 'FLIGHT'],
-  ['4', 'trajectory', 'Trajectory', 'TRAJECTORY'],
-  ['5', 'postflight', 'Post-flight', 'POST-FLIGHT'],
+  ['3', 'flight', 'Launch-commit gates', 'FLIGHT'],
+  ['4', 'trajectory', 'Forecast', 'TRAJECTORY'],
+  ['5', 'postflight', 'Post-flight debrief', 'POST-FLIGHT'],
   ['6', 'events', 'Event log (append-only)', 'EVENTS'],
 ];
 
@@ -28,6 +28,7 @@ for (const [key, id, heading, nav] of PAGES) {
 test('flight page: channels, limits, strip charts, keyboard navigation, poll and alarm acknowledgement', async ({ page }) => {
   const found = errors(page);
   await page.goto('/#/flight');
+  await page.getByRole('button', { name: /Telemetry Channels/ }).click();
   const table = page.getByRole('table', { name: 'Telemetry channels' });
   await expect(table.getByRole('cell', { name: 'GNSS_ALT', exact: true })).toBeVisible();
   await expect(table.getByRole('cell', { name: 'TANK_P', exact: true })).toBeVisible();

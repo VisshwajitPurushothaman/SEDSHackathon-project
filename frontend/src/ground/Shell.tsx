@@ -124,6 +124,33 @@ function TopBar() {
   );
 }
 
+/** Empty / error states for the whole console: never show frozen values as if live. */
+function StateBanner() {
+  const ws = useGround((s) => s.ws);
+  const snap = useGround((s) => s.snap);
+  const flt = (snap?.digital_twin as unknown as { filter?: { source: string | null; rejected: Record<string, number>; accepted: number } } | undefined)?.filter;
+  let text: string | null = null;
+  let cls = 'border-hold/60 bg-hold/10 text-hold';
+  if (ws !== 'open') {
+    text = ws === 'connecting' ? 'Connecting to the ground-station backend…' : 'Backend unreachable: the console is not receiving data (reconnecting). Values shown are not live.';
+    cls = ws === 'connecting' ? 'border-line bg-panel2 text-muted' : 'border-fail/60 bg-fail/10 text-fail';
+  } else if (!snap?.mission_id) {
+    const rej = flt ? Object.values(flt.rejected).reduce((a, b) => a + b, 0) : 0;
+    text = rej
+      ? `No telemetry stream locked: ${rej} packets received from ${flt?.source ?? 'the sender'} but none advancing in MET (see OVERVIEW > Laptop A twin stream).`
+      : 'No telemetry received yet: waiting for Laptop A (TCP 65432) or an ICD sender (UDP 5600).';
+    cls = 'border-line bg-panel2 text-muted';
+  } else if (snap.link && snap.link.aos === false) {
+    text = 'LOS: no fresh frames. Values are STALE (with age) and positions PREDICTED.';
+  }
+  if (!text) return null;
+  return (
+    <div className={`border-b px-3 py-1.5 text-[12.5px] ${cls}`} role="status">
+      {text}
+    </div>
+  );
+}
+
 function LeftNav({ page }: { page: PageId }) {
   return (
     <nav className="flex w-[148px] shrink-0 flex-col border-r border-line bg-panel py-2" aria-label="Pages">
@@ -219,6 +246,7 @@ export function Shell({ page, children }: { page: PageId; children: ReactNode })
   return (
     <div className="flex h-full min-h-[640px] flex-col">
       <TopBar />
+      <StateBanner />
       <div className="flex min-h-0 flex-1">
         <LeftNav page={page} />
         <main className="min-w-0 flex-1 overflow-auto" id="page">

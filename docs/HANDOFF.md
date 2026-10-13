@@ -157,8 +157,15 @@ area, range zones, snapshot atmosphere and ML data did not (impact gate cannot p
   home default, the Post-flight hard-coded debrief (apogee, duration, splashdown, 100 % quality). EVENTS page
   restored (key 6). Post-flight code from 87458be now tested (tests/test_postflight_receiver.py: recovery,
   tamper, report hash, grading isolation, exports, API, twin recovery refused). Backend: 212 passed.
+- B.5 done: UI main-thread stall fixed by B.4's removal of the per-message history synthesis (store.ts
+  concatenating up to 30 000 synthetic rows per WebSocket message + re-plotting): 1 Hz DOM-read spacing
+  4.94 s median / 11.74 s p90 -> 1.01 s / 1.02 s; 0 long tasks, 2 ms main-thread probe on Overview,
+  Flight, Trajectory (CDP profile). Rendering is driven by the backend's fixed 4 Hz snapshot push (not per
+  packet) and a 1 Hz history pull. Fused-state panel shows raw sensor beside fused ±1σ; console-wide
+  banners for backend unreachable / no stream locked / LOS. console.spec: locators updated for the
+  teammate's redesigned headings (checks unchanged); 7 passed.
 
 ## Status
 
-- Next exact step: B.5 UI performance (profile the 4.7 s stall; fixed 2-5 Hz render from the latest state),
-  then raw + fused side by side and empty/error states.
+- Next exact step: B.6 physics forecast with measured drift; retrain ML on the new site; ML_RESULTS with
+  x+v*h, physics and hybrid + CIs; hybrid default only if it beats x+v*h with a CI excluding 0.

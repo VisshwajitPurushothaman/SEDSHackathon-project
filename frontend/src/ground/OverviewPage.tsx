@@ -116,7 +116,7 @@ export function OverviewPage() {
 
         <div className="min-h-[520px]">
           {hasFix ? (
-            <MissionLiveMap vehicleLat={lat.value as number} vehicleLon={lon.value as number} vehicleAltM={alt.value as number} yawDeg={yaw.value ?? 0} homeLat={site!.lat} homeLon={site!.lon} flightPhase={rawPhase ?? undefined} historyTrail={trail} />
+            <MissionLiveMap vehicleLat={lat.value as number} vehicleLon={lon.value as number} vehicleAltM={alt.value as number} yawDeg={yaw.value ?? 0} homeLat={site!.lat} homeLon={site!.lon} flightPhase={rawPhase ?? snap?.fc_phase ?? 'UNKNOWN'} historyTrail={trail} />
           ) : (
             <div className="panel grid h-full place-items-center text-[12px] text-muted">No fused position yet: UNKNOWN</div>
           )}

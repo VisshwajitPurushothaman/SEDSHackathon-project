@@ -6,7 +6,7 @@ import { MissionLiveMap } from './MissionLiveMap';
 import { StripChart, type StripSeries } from './StripChart';
 import { useGround } from './store';
 import { useProfile } from './PreflightPage';
-import { chan, chanText, est, fmt } from './live';
+import { chan, chanText, est, fmt, type Reading } from './live';
 import { ui } from '../theme/tokens';
 
 // ------------------------------------------------------------------ telemetry table
@@ -196,27 +196,39 @@ export function FlightCharts({ snap }: { snap: Snapshot | null }) {
 // ------------------------------------------------------------------ fused state
 
 /** sigmaUnit: the horizontal sigma of lat/lon is in metres. */
-function EstRow({ label, e, unit, dec = 1, sigmaUnit }: { label: string; e: Estimate | undefined; unit: string; dec?: number; sigmaUnit?: string }) {
+function EstRow({ label, e, unit, dec = 1, sigmaUnit, raw }: { label: string; e: Estimate | undefined; unit: string; dec?: number; sigmaUnit?: string; raw?: Reading | null }) {
   const status = e?.status ?? 'UNKNOWN';
   const v = e?.value ?? e?.last_value;
   return (
     <tr>
       <td className="lbl">{label}</td>
+      <td className={`num whitespace-nowrap text-right text-[12px] ${raw?.status === 'STALE' ? 'text-stale' : 'text-muted'}`} title="raw sensor value (as received)">
+        {raw === undefined ? '' : raw === null || raw.value === null ? 'n/a' : raw.value.toFixed(dec)}
+        {raw && raw.value !== null && <div className="text-[10px]">{raw.status}</div>}
+      </td>
       <td className={`num whitespace-nowrap text-right text-[13px] ${status === 'PREDICTED' ? 'text-pred' : status === 'UNKNOWN' ? 'text-stale' : 'text-ink'}`}>
         {fmtNum(v, dec)} <span className="unit text-[11px]">{unit}</span>
         <div className="text-[10.5px] text-muted">{typeof e?.sigma === 'number' ? (sigmaUnit ? `±${e.sigma.toFixed(1)} ${sigmaUnit}` : `±${e.sigma.toFixed(dec)}`) : ''}</div>
       </td>
       <td>
-        <span className={`tag ${STATUS_TAG[status]}`}>{status}</span>
+        <span className={`tag ${STATUS_TAG[status]}`} title={status}>
+          {SHORT[status] ?? status}
+        </span>
       </td>
     </tr>
   );
 }
 
+const SHORT: Record<string, string> = { PREDICTED: 'PRED', MEASURED: 'MEAS', RECONSTRUCTED: 'RECON', UNKNOWN: 'UNK', FUSED: 'FUSED' };
+
 const TRUST_TAG: Record<string, string> = { ACCEPTED: 'tag-nom', SUSPECT: 'tag-cau', EXCLUDED: 'tag-alm' };
 
-export function FusedPanel({ g }: { g: GroundFrame | null | undefined }) {
+export function FusedPanel({ g, snap }: { g: GroundFrame | null | undefined; snap?: Snapshot | null }) {
   const E = g?.estimates ?? {};
+  const raw = (m: string): Reading | null => {
+    const r = chan(snap, m);
+    return r.value === null ? null : r;
+  };
   const nav = g?.gates.nav;
   const nv = (nav?.value ?? null) as { chi2_h?: number; chi2_v?: number } | null;
   const nl = (nav?.limit ?? null) as { chi2_h?: number; chi2_v?: number } | null;
@@ -230,11 +242,17 @@ export function FusedPanel({ g }: { g: GroundFrame | null | undefined }) {
       </div>
       <table className="tbl">
         <tbody>
-          <EstRow label="Altitude" e={E.altitude} unit="m" dec={0} />
-          <EstRow label="Vert. speed" e={E.vertical_speed} unit="m/s" dec={2} />
+          <tr>
+            <th />
+            <th className="text-right">raw sensor</th>
+            <th className="text-right">fused ±1σ</th>
+            <th />
+          </tr>
+          <EstRow label="Altitude" e={E.altitude} unit="m" dec={0} raw={raw('GNSS_ALT')} />
+          <EstRow label="Vert. speed" e={E.vertical_speed} unit="m/s" dec={2} raw={raw('GNSS_VU')} />
           <EstRow label="v̄z 60 s" e={E.vertical_speed_mean} unit="m/s" dec={2} />
-          <EstRow label="Latitude" e={E.lat} unit="deg" dec={5} sigmaUnit="m" />
-          <EstRow label="Longitude" e={E.lon} unit="deg" dec={5} sigmaUnit="m" />
+          <EstRow label="Latitude" e={E.lat} unit="deg" dec={5} sigmaUnit="m" raw={raw('GNSS_LAT')} />
+          <EstRow label="Longitude" e={E.lon} unit="deg" dec={5} sigmaUnit="m" raw={raw('GNSS_LON')} />
           <EstRow label="Gnd speed" e={E.ground_speed} unit="m/s" dec={1} />
         </tbody>
       </table>
@@ -553,7 +571,7 @@ export default function FlightPage() {
           {/* Right side: Commit gates and Fused state */}
           <div className="flex min-h-0 flex-col gap-2 overflow-auto">
             <GatesPanel g={g} snap={snap} />
-            <FusedPanel g={g} />
+            <FusedPanel g={g} snap={snap} />
             <LinkPanel snap={snap} />
           </div>
         </div>
@@ -565,7 +583,7 @@ export default function FlightPage() {
           </div>
           <div className="flex min-h-0 flex-col gap-2 overflow-auto">
             <GatesPanel g={g} snap={snap} />
-            <FusedPanel g={g} />
+            <FusedPanel g={g} snap={snap} />
             <LinkPanel snap={snap} />
           </div>
         </div>
