@@ -29,7 +29,7 @@ from .session import GroundSession
 from .twin import declared_origin, twin_channels, twin_frame
 
 TICK_S = 0.5
-RANGE_PATH = Path(__file__).resolve().parents[2] / "config" / "range.geojson"
+RANGE_PATH = Path(__file__).resolve().parents[2] / "config" / "range.yaml"
 
 
 class Receiver:
@@ -62,7 +62,7 @@ class Receiver:
             return self.preflight_ctx
         cfg, fc = self.cfg, self.forecast()
         prof = PF.predicted_profile(cfg, fc)
-        rng = PF.load_range(RANGE_PATH)
+        rng = PF.load_range(cfg, RANGE_PATH)
         e = prof["end"]
         lat, lon = geo.enu_to_latlon(e["east"], e["north"], cfg.site.lat_deg, cfg.site.lon_deg)
         fp = PF.wind_drift_landing(Predictor(cfg, fc, np.random.default_rng(0)), e)

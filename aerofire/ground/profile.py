@@ -131,26 +131,18 @@ def polygons_intersect(a: list[list[float]], b: list[list[float]]) -> bool:
     return False
 
 
-def load_range(path) -> dict[str, Any]:
-    """config/range.geojson -> {site, approved, zones: [{name, kind, polygon [[lat, lon]]}], label}."""
-    import json
+def load_range(cfg, path) -> dict[str, Any]:
+    """config/range.yaml (zones as offsets from the site) -> {site, approved, zones, label} in absolute lat/lon."""
+    import yaml
 
     with open(path, encoding="utf-8") as fh:
-        gj = json.load(fh)
-    site, approved, zones = None, None, []
-    for f in gj["features"]:
-        props, g = f.get("properties", {}), f["geometry"]
-        if g["type"] == "Point":
-            site = {"lat": g["coordinates"][1], "lon": g["coordinates"][0], "name": props.get("name", "")}
-            continue
-        poly = [[c[1], c[0]] for c in g["coordinates"][0]]
-        if poly and poly[0] == poly[-1]:
-            poly = poly[:-1]
-        if props.get("kind") == "approved_impact_area":
-            approved = {"name": props.get("name", ""), "polygon": poly}
-        else:
-            zones.append({"name": props.get("name", ""), "kind": props.get("kind", "restricted"), "polygon": poly})
-    return {"site": site, "approved": approved, "zones": zones, "label": gj.get("label", "")}
+        rc = yaml.safe_load(fh)
+    lat0, lon0 = cfg.site.lat_deg, cfg.site.lon_deg
+    zones = [{"name": z["name"], "kind": z.get("kind", "restricted"),
+              "polygon": [[round(lat0 + a, 6), round(lon0 + b, 6)] for a, b in z["offsets"]]} for z in rc.get("zones", [])]
+    return {"site": {"lat": lat0, "lon": lon0, "name": cfg.site.name},
+            "approved": {"name": "Approved impact area (config gates.approved_area_offsets_deg)", "polygon": [list(p) for p in cfg.gates.approved_area]},
+            "zones": zones, "label": rc.get("label", "")}
 
 
 def range_check(rng: dict[str, Any], footprint: dict[str, Any] | None, iips: list[dict[str, Any]] | None) -> dict[str, Any]:

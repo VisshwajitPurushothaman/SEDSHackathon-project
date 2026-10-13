@@ -52,7 +52,7 @@ Pre-flight evidence is the pad telemetry (`FC_PHASE == PAD`); it freezes at rele
 profile is ground physics with the forecast atmosphere (no telemetry). During flight,
 history rows carry `band_<MNEMONIC>_lo/hi`; a channel outside its band for
 `prediction.off_nominal_persist_s` raises an OFF-NOMINAL caution, and the live footprint/IIPs
-are re-checked against `config/range.geojson` (illustrative zones, not NOTAM data).
+are re-checked against the zones of `config/range.yaml` (offsets from the site; illustrative, not NOTAM data).
 
 `link`: `aos`, `last_frame_age_s`, `rate_hz` (10 s window), `loss_pct` (missing seq),
 `latency_s` (median minus minimum of receive−send: the laptops' clock offset cannot be

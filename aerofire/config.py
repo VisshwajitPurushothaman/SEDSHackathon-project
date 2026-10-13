@@ -53,13 +53,29 @@ def deep_merge(base: dict[str, Any], over: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
+def derive_site(data: dict[str, Any]) -> dict[str, Any]:
+    """Everything site-dependent follows `site` (one place to change the launch site)."""
+    site = data.get("site") or {}
+    lat, lon = site.get("lat_deg"), site.get("lon_deg")
+    if lat is None or lon is None:
+        return data
+    gates = data.get("gates") or {}
+    if "approved_area_offsets_deg" in gates:
+        gates["approved_area"] = [[round(lat + a, 6), round(lon + b, 6)] for a, b in gates["approved_area_offsets_deg"]]
+    link = data.get("link")
+    if isinstance(link, dict):
+        link.setdefault("station_lat_deg", lat)
+        link.setdefault("station_lon_deg", lon)
+    return data
+
+
 def load_raw(path: Path | str | None = None) -> dict[str, Any]:
     with open(path or DEFAULT_PATH, encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+        return derive_site(yaml.safe_load(fh))
 
 
 def load_config(path: Path | str | None = None, overrides: Mapping[str, Any] | None = None) -> Config:
     data = load_raw(path)
     if overrides:
-        data = deep_merge(data, overrides)
+        data = derive_site(deep_merge(data, overrides))
     return Config(data)

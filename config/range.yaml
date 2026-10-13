@@ -1,0 +1,9 @@
+# Range and airspace zones RELATIVE to config/mission.yaml `site` (degrees: [dlat, dlon] corners).
+# ILLUSTRATIVE zones for the demo: NOT real NOTAM, airspace or range data. Placed clear of the nominal
+# 99 % landing footprint predicted for the site (aerofire/ground/profile.py), so a nominal pre-flight can pass.
+label: "ILLUSTRATIVE zones for the demo, not real NOTAM, airspace or range data"
+zones:
+  - {name: "R-101 restricted (illustrative)", kind: restricted, offsets: [[0.45, -0.30], [0.60, -0.30], [0.60, 0.00], [0.45, 0.00]]}
+  - {name: "M-7 military range (illustrative)", kind: military, offsets: [[-0.55, -0.25], [-0.35, -0.25], [-0.35, 0.05], [-0.55, 0.05]]}
+  - {name: "NFZ-3 no-fly (illustrative)", kind: no_fly, offsets: [[-0.30, -0.60], [-0.18, -0.60], [-0.18, -0.45], [-0.30, -0.45]]}
+  - {name: "R-205 offshore danger area (illustrative)", kind: restricted, offsets: [[0.30, 1.20], [0.70, 1.20], [0.70, 1.60], [0.30, 1.60]]}

@@ -22,10 +22,14 @@ constants:
   wgs84_f: 0.0033528106647474805  # WGS84 flattening 1/298.257223563 [source: NIMA TR8350.2]
 
 site:
-  name: "Point Calimere Bird Sanctuary (Tamil Nadu)"
-  lat_deg: 10.301500          # Point Calimere Bird Sanctuary, Kodiakkarai, Tamil Nadu
-  lon_deg: 79.851200          # Point Calimere Bird Sanctuary, Kodiakkarai, Tamil Nadu
-  elevation_m: 2.0            # Launch pad coastal elevation (m)
+  # THE single site. Everything site-dependent (approved impact area, ground-station position, range zones in
+  # config/range.yaml, the recorded atmosphere snapshot) is derived from it. It must equal the launch origin the
+  # Laptop A digital twin declares in its packets ("Chennai Launch Pad, India (13.0827N, 80.2707E)"); the receiver
+  # raises an alarm if they differ. [source: Laptop A twin packets, 13 Oct 2026]
+  name: "Chennai Launch Pad (Laptop A twin origin)"
+  lat_deg: 13.0827
+  lon_deg: 80.2707
+  elevation_m: 0.0            # [source: twin packets report altitude = height above the pad origin]
 
 atmosphere:
   # Live data: Open-Meteo forecast API, pressure-level variables.
@@ -121,7 +125,8 @@ gates:
                               # missions raise a false alert, 10 s -> 0.8 %, 20 s -> 0/400 (95 % upper bound 0.75 %)
   early_burnout_fractions: [0.3, 0.6]  # [ASSUMPTION] failure cases for the impact-safety gate
   # Approved impact area (lat, lon), closed polygon. ILLUSTRATIVE, not an official range.
-  approved_area: [[13.00, 79.60], [14.60, 79.60], [14.60, 82.50], [13.00, 82.50]]  # [ASSUMPTION]
+  # Approved impact area as (dlat, dlon) degree offsets from the site; config.py derives `approved_area`.
+  approved_area_offsets_deg: [[-0.72, -0.63], [0.88, -0.63], [0.88, 2.27], [-0.72, 2.27]]  # [ASSUMPTION] illustrative, mostly offshore
 
 rocket:
   # ILLUSTRATIVE MODEL, NOT VALIDATED.
@@ -152,9 +157,8 @@ link:
   antenna_gain_db: 9.0        # [ASSUMPTION] sum of TX and RX antenna gains
   freq_mhz: 2400.0            # [ASSUMPTION] S-band
   rssi_sigma_db: 2.0          # [ASSUMPTION] fading
-  station_lat_deg: 10.301500  # ground station at Point Calimere launch site
-  station_lon_deg: 79.851200
-  station_alt_m: 2.0
+  # Ground station at the site: config.py sets station_lat_deg / station_lon_deg from `site`.
+  station_alt_m: 10.0         # [ASSUMPTION] antenna height
 
 recovery:
   # Post-flight download of records the ground did not receive live.

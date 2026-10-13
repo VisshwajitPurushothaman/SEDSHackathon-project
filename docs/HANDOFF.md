@@ -73,7 +73,7 @@ alerts, map) and Post-flight, attaching to missions that already exist.
   the forecast atmosphere; nominal/fast/slow envelope + tolerance from `config/mission.yaml`
   `prediction:`), band lookup, polygon intersection, range check. Ballast controller moved to
   `aerofire/physics/float_control.py` (sim re-exports it) so the ground can use it.
-- `config/range.geojson`: site, approved area and 4 illustrative zones (not NOTAM data).
+- `config/range.yaml` (was range.geojson): 4 illustrative zones as offsets from the site (not NOTAM data).
 - `aerofire/receiver/preflight.py`: channel health on pad telemetry (present, rate +-50 %,
   pad limits on the median, not frozen), GNSS/NavIC/baro chi-square agreement, profile, range,
   waivers, readiness + SHA-256 report. Session: band fields in history rows, OFF-NOMINAL caution
@@ -144,10 +144,14 @@ area, range zones, snapshot atmosphere and ML data did not (impact gate cannot p
   MET slots; integrity shown as "none (unsigned twin protocol)"; origin mismatch alarm. Live check:
   Laptop A is currently holding at MET 3544.4 s (SBRL_RELEASE_WINDOW) and not advancing, so B
   correctly shows no lock (all packets rejected as not advancing).
+- B.3 done: single site = Laptop A's declared origin (Chennai Launch Pad 13.0827 N, 80.2707 E).
+  `aerofire/config.py derive_site()` derives `gates.approved_area` (from `approved_area_offsets_deg`) and
+  the ground-station position; `config/range.yaml` holds zones as site offsets (replaces range.geojson);
+  `tools/record_atmosphere_snapshot.py` re-recorded the Open-Meteo snapshot for the site (13 Oct);
+  demo sessions re-recorded (nominal reaches GO again). Full backend suite: 207 passed.
 
 ## Status
 
-- Known failing until B.3: tests/test_preflight_profile.py::test_polygon_intersection_and_range_conflicts
-  and 5 tests in tests/test_api_missions.py (all need the impact gate, broken by the site drift).
-- Next exact step: B.3 single site config (site = A's declared origin; approved area, zones and
-  atmosphere snapshot derived from the site).
+- Next exact step: B.4 remove remaining fakes/placeholders in the frontend (store.ts TCP rows,
+  Flight/Overview/Trajectory digital_twin_telemetry branches, fallbacks 37.1/-6.733/10.3015, mass
+  defaults, sticky latch) and test the post-flight code from 87458be on the twin pipeline.
