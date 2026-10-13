@@ -225,6 +225,10 @@ def twin_channels(p: dict[str, Any], prev_phase: str | None) -> tuple[dict[str, 
     put("TOTAL_MASS", pay.get("total_mass_kg"))
     put("MACH", phy.get("mach_number"))
     put("DYN_P", phy.get("dynamic_pressure_q_pa"))
+    sim = p.get("simulation_state") or {}
+    paused = p.get("ping_paused", sim.get("ping_paused"))
+    if paused is not None or isinstance(sim.get("is_paused"), bool):
+        ch["TWIN_PAUSED"] = 1 if (paused in (1, True, "1", "true", "True") or sim.get("is_paused") is True) else 0
     raw_phase = p.get("flight_phase")
     if isinstance(raw_phase, str):
         ch["FC_PHASE_RAW"] = raw_phase

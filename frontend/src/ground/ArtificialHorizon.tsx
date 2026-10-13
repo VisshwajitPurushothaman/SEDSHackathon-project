@@ -1,5 +1,8 @@
 import { useMemo } from 'react';
 
+/** Non-finite (missing) values render as ---, never as a number. */
+const num = (v: number, d: number) => (Number.isFinite(v) ? v.toFixed(d) : '---');
+
 interface ArtificialHorizonProps {
   rollDeg: number;       // Roll angle in degrees (-180 to 180)
   pitchDeg: number;      // Pitch angle in degrees (-90 to 90)
@@ -228,17 +231,17 @@ export function ArtificialHorizon({
         <div className="absolute left-1 top-6 bottom-8 w-14 border border-white/20 bg-black/60 z-20 flex flex-col justify-between py-1 text-[10.5px]">
           <div className="px-1 text-[9px] uppercase tracking-wider text-muted font-bold">SPD m/s</div>
           <div className="flex flex-col items-center gap-2">
-            <span className="text-white/60">{(speedMps + 20).toFixed(0)}</span>
-            <span className="text-white/60">{(speedMps + 10).toFixed(0)}</span>
+            <span className="text-white/60">{num(speedMps + 20, 0)}</span>
+            <span className="text-white/60">{num(speedMps + 10, 0)}</span>
             {/* Center Box */}
             <div className="w-full bg-[#f5c542] px-1 py-0.5 text-center font-bold text-black shadow">
-              {speedMps.toFixed(1)}
+              {num(speedMps, 1)}
             </div>
-            <span className="text-white/60">{Math.max(0, speedMps - 10).toFixed(0)}</span>
-            <span className="text-white/60">{Math.max(0, speedMps - 20).toFixed(0)}</span>
+            <span className="text-white/60">{num(Math.max(0, speedMps - 10), 0)}</span>
+            <span className="text-white/60">{num(Math.max(0, speedMps - 20), 0)}</span>
           </div>
           <div className="px-1 text-[9px] text-[#f5c542] font-semibold">
-            V/S: {verticalSpeedMps >= 0 ? `+${verticalSpeedMps.toFixed(1)}` : verticalSpeedMps.toFixed(1)}
+            V/S: {Number.isFinite(verticalSpeedMps) ? (verticalSpeedMps >= 0 ? `+${verticalSpeedMps.toFixed(1)}` : verticalSpeedMps.toFixed(1)) : '---'}
           </div>
         </div>
 
@@ -246,17 +249,17 @@ export function ArtificialHorizon({
         <div className="absolute right-1 top-6 bottom-8 w-16 border border-white/20 bg-black/60 z-20 flex flex-col justify-between py-1 text-[10.5px]">
           <div className="px-1 text-right text-[9px] uppercase tracking-wider text-muted font-bold">ALT (m)</div>
           <div className="flex flex-col items-center gap-2">
-            <span className="text-white/60">{Math.round(altitudeM + 200)}</span>
-            <span className="text-white/60">{Math.round(altitudeM + 100)}</span>
+            <span className="text-white/60">{num(altitudeM + 200, 0)}</span>
+            <span className="text-white/60">{num(altitudeM + 100, 0)}</span>
             {/* Center Box */}
             <div className="w-full bg-[#3fd68a] px-1 py-0.5 text-center font-bold text-black shadow">
-              {Math.round(altitudeM)}
+              {num(altitudeM, 0)}
             </div>
-            <span className="text-white/60">{Math.max(0, Math.round(altitudeM - 100))}</span>
-            <span className="text-white/60">{Math.max(0, Math.round(altitudeM - 200))}</span>
+            <span className="text-white/60">{num(Math.max(0, altitudeM - 100), 0)}</span>
+            <span className="text-white/60">{num(Math.max(0, altitudeM - 200), 0)}</span>
           </div>
           <div className="px-1 text-right text-[9px] text-[#3fd68a] font-semibold">
-            {(altitudeM / 1000).toFixed(2)} km
+            {num(altitudeM / 1000, 2)} km
           </div>
         </div>
 

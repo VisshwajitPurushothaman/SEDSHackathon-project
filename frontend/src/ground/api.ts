@@ -51,6 +51,9 @@ export interface Link {
   gaps?: [number, number][];
   los_periods?: LosPeriod[];
   time_scale?: number;
+  integrity?: string;
+  unsigned_frames?: number;
+  rejected?: Record<string, number>;
 }
 
 export interface Estimate {

@@ -75,6 +75,12 @@ const CLOSURE: [string, string][] = [
 ];
 const SUBSYSTEMS = ['NAV', 'ENV', 'ATT', 'PROP', 'PWR', 'COMM', 'VEHICLE'];
 
+/** Local east/north offset in metres (equirectangular; display only). */
+function enuOffset(lat0: number, lon0: number, lat: number, lon: number): [number, number] {
+  const k = Math.PI / 180;
+  return [(lon - lon0) * k * 6371000 * Math.cos(lat0 * k), (lat - lat0) * k * 6371000];
+}
+
 async function download(path: string, name: string) {
   const r = await fetch(`${API_URL}${path}`);
   const text = await r.text(); // original bytes: keeps the report hash verifiable
@@ -135,6 +141,7 @@ function ScoreTable({ rows, label }: { rows: Score[]; label: string }) {
 
 export default function PostflightPage() {
   const missionId = useGround((s) => s.missionId);
+  const snap = useGround((s) => s.snap);
   const operator = useGround((s) => s.operator).trim();
   const prof = useProfile();
   const [rec, setRec] = useState<Recovery | null>(null);
@@ -212,75 +219,49 @@ export default function PostflightPage() {
     };
   }, [an]);
 
-  const activeMission = missionId || 'SBRL-MISSION-LIVE-01';
-  const pct = rec?.expected ? Math.min(100, (100 * (rec.have ?? 0)) / rec.expected) : 100;
+  const pct = rec?.expected ? Math.min(100, (100 * (rec.have ?? 0)) / rec.expected) : 0;
+  // Debrief numbers computed from this mission's data only (no literals).
+  const recAlt = an?.histories.reconstructed.map((p) => p.alt).filter((v): v is number => typeof v === 'number') ?? [];
+  const liveT = an?.histories.live.map((p) => p.met) ?? [];
+  const apogee = recAlt.length ? Math.max(...recAlt) : null;
+  const duration = liveT.length > 1 ? liveT[liveT.length - 1] - liveT[0] : null;
+  const site = prof?.range.site ?? null;
+  const landing = R?.landing?.landing_fix ?? null;
+  const lastLive = an?.histories.live.length ? an.histories.live[an.histories.live.length - 1] : null;
+  const displacement = site && lastLive ? Math.hypot(...enuOffset(site.lat, site.lon, lastLive.lat, lastLive.lon), lastLive.alt ?? 0) : null;
+  const loss = snap?.link?.loss_pct;
+  const landed = snap?.fc_phase === 'LANDED';
+  const verified = rec?.chain_ok === true;
 
   return (
     <div className="flex flex-col gap-2 p-2">
-      {/* ------------------- EXECUTIVE SBRL MISSION DEBRIEF BANNER ------------------- */}
-      <section className="rounded border border-[#1e2e47] bg-[#090f1a] p-3 font-mono shadow-md">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1e2e47] pb-2">
+      <section className="panel p-3" aria-labelledby="pf-debrief">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
           <div className="flex items-center gap-2">
-            <span className="text-[15px] font-bold tracking-wider text-[#5cd6ff]">
-              🚀 SBRL POST-FLIGHT MISSION DEBRIEF SUMMARY
-            </span>
-            <span className="rounded bg-[#132238] px-2 py-0.5 text-[11px] font-bold text-[#3fd68a] border border-[#3fd68a]/30">
-              MISSION ID: {activeMission}
-            </span>
+            <h2 id="pf-debrief" className="panel-title">
+              Post-flight debrief
+            </h2>
+            <span className="tag tag-fused">MISSION {missionId}</span>
           </div>
-          <span className="rounded bg-[#1b5e20]/40 px-2.5 py-0.5 text-[11px] font-bold text-[#a5d6a7] border border-[#2e7d32]">
-            STATUS: FLIGHT COMPLETE &amp; VERIFIED
+          <span className={`tag ${landed ? 'tag-nom' : 'tag-cau'}`}>{landed ? 'LANDED' : `PHASE ${snap?.fc_phase ?? 'UNKNOWN'}`}</span>
+          <span className={`tag ${verified ? 'tag-nom' : 'tag-stale'}`}>
+            {verified ? 'DATA CHAIN VERIFIED' : snap?.link?.integrity?.startsWith('none') ? 'UNSIGNED SOURCE: NOT VERIFIABLE' : 'NOT VERIFIED (run recovery)'}
           </span>
         </div>
-
-        <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 text-[11.5px]">
-          <div className="rounded border border-[#1a2b42] bg-[#0c1626] p-2">
-            <span className="text-[10px] text-muted uppercase">Apogee Altitude</span>
-            <div className="text-[16px] font-bold text-[#3fd68a]">
-              18,197.6 <span className="text-[10px] text-muted">m</span>
+        <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11.5px] sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            ['Apogee (reconstructed)', apogee === null ? '---' : `${apogee.toFixed(0)} m`],
+            ['Duration (received)', duration === null ? '---' : fmtMET(duration)],
+            ['Launch site (config)', site ? `${site.name} · ${site.lat.toFixed(4)}, ${site.lon.toFixed(4)}` : '---'],
+            ['Landing fix (fused)', landing ? `${landing.lat.toFixed(4)}, ${landing.lon.toFixed(4)}` : 'NOT AVAILABLE'],
+            ['3D displacement (last fix)', displacement === null ? '---' : `${(displacement / 1000).toFixed(2)} km`],
+            ['Frame loss (measured)', typeof loss === 'number' ? `${loss.toFixed(1)} %` : '---'],
+          ].map(([k, v]) => (
+            <div key={k} className="rounded border border-line bg-panel2 p-2">
+              <span className="lbl block">{k}</span>
+              <span className="num text-[14px] text-ink">{v}</span>
             </div>
-            <span className="text-[9.5px] text-[#3fd68a]">Stratospheric Float</span>
-          </div>
-
-          <div className="rounded border border-[#1a2b42] bg-[#0c1626] p-2">
-            <span className="text-[10px] text-muted uppercase">Flight Duration</span>
-            <div className="text-[16px] font-bold text-[#5cd6ff]">
-              01:30:06 <span className="text-[10px] text-muted">MET</span>
-            </div>
-            <span className="text-[9.5px] text-muted">5,406 s Elapsed</span>
-          </div>
-
-          <div className="rounded border border-[#1a2b42] bg-[#0c1626] p-2">
-            <span className="text-[10px] text-muted uppercase">Launch Pad Origin</span>
-            <div className="text-[13px] font-bold text-[#f5c542] truncate" title="Point Calimere Bird Sanctuary (Tamil Nadu)">
-              Point Calimere, TN
-            </div>
-            <span className="text-[9.5px] text-muted">10.3015° N, 79.8512° E</span>
-          </div>
-
-          <div className="rounded border border-[#1a2b42] bg-[#0c1626] p-2">
-            <span className="text-[10px] text-muted uppercase">Splashdown Fix</span>
-            <div className="text-[13px] font-bold text-[#3fd68a] truncate" title="Palk Strait Recovery Zone">
-              Palk Strait Corridor
-            </div>
-            <span className="text-[9.5px] text-muted">10.2481° N, 80.0125° E</span>
-          </div>
-
-          <div className="rounded border border-[#1a2b42] bg-[#0c1626] p-2">
-            <span className="text-[10px] text-muted uppercase">3D Displacement</span>
-            <div className="text-[16px] font-bold text-white">
-              18,198 <span className="text-[10px] text-muted">m</span>
-            </div>
-            <span className="text-[9.5px] text-muted">X:+3.3m · Z:-12.2km</span>
-          </div>
-
-          <div className="rounded border border-[#1a2b42] bg-[#0c1626] p-2">
-            <span className="text-[10px] text-muted uppercase">Telemetry Quality</span>
-            <div className="text-[16px] font-bold text-[#3fd68a]">
-              100.0 <span className="text-[10px] text-muted">%</span>
-            </div>
-            <span className="text-[9.5px] text-[#3fd68a]">0.0% Frame Loss</span>
-          </div>
+          ))}
         </div>
       </section>
 

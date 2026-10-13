@@ -5,6 +5,8 @@ import { ArtificialHorizon } from './ArtificialHorizon';
 import { MissionLiveMap } from './MissionLiveMap';
 import { StripChart, type StripSeries } from './StripChart';
 import { useGround } from './store';
+import { useProfile } from './PreflightPage';
+import { chan, chanText, est, fmt } from './live';
 import { ui } from '../theme/tokens';
 
 // ------------------------------------------------------------------ telemetry table
@@ -429,28 +431,20 @@ export default function FlightPage() {
   const g = snap?.ground;
   const [flightView, setFlightView] = useState<'mission_planner' | 'telemetry_grid'>('mission_planner');
 
-  const dt = snap?.digital_twin_telemetry;
-  const imu = dt?.imu_sensor;
-  const roll = imu?.attitude_rpy_deg?.[0] ?? 0;
-  const pitch = imu?.attitude_rpy_deg?.[1] ?? 0;
-  const yaw = imu?.attitude_rpy_deg?.[2] ?? 0;
-  const rawAlt = dt?.gnss_coordinates?.geodetic_wgs84?.alt_m ?? g?.estimates?.altitude?.value;
-  const alt = typeof rawAlt === 'number' ? rawAlt : Number(rawAlt) || 0;
-
-  const rawLat = dt?.gnss_coordinates?.geodetic_wgs84?.lat_deg ?? g?.estimates?.lat?.value;
-  const lat = typeof rawLat === 'number' ? rawLat : Number(rawLat) || 37.1;
-
-  const rawLon = dt?.gnss_coordinates?.geodetic_wgs84?.lon_deg ?? g?.estimates?.lon?.value;
-  const lon = typeof rawLon === 'number' ? rawLon : Number(rawLon) || -6.733;
-
-  const rawSpd = g?.estimates?.ground_speed?.value;
-  const spd = typeof rawSpd === 'number' ? rawSpd : Number(rawSpd) || 0;
-
-  const rawVz = g?.estimates?.vertical_speed?.value;
-  const vz = typeof rawVz === 'number' ? rawVz : Number(rawVz) || 0;
-
-  const isAttached = dt?.payload_state?.is_attached ?? true;
-  const flightPhase = dt?.flight_phase ?? snap?.fc_phase ?? 'IN-FLIGHT';
+  // One pipeline: attitude from IMU channels, position/speeds from the fused estimator. No defaults.
+  const roll = chan(snap, 'IMU_ROLL');
+  const pitch = chan(snap, 'IMU_PITCH');
+  const yaw = chan(snap, 'IMU_YAW');
+  const alt = est(snap, 'altitude');
+  const lat = est(snap, 'lat');
+  const lon = est(snap, 'lon');
+  const spd = est(snap, 'ground_speed');
+  const vz = est(snap, 'vertical_speed');
+  const hasAttitude = roll.value !== null && pitch.value !== null && yaw.value !== null;
+  const site = useProfile()?.range.site ?? null;
+  const hasFix = lat.value !== null && lon.value !== null && alt.value !== null && site !== null;
+  const flightPhase = chanText(snap, 'FC_PHASE_RAW') ?? snap?.fc_phase ?? 'NO DATA';
+  const rocketAboard = chanText(snap, 'FC_RKT_PHASE');
 
   return (
     <div className="flex h-full min-h-[760px] flex-col p-2 gap-2">
@@ -495,37 +489,45 @@ export default function FlightPage() {
           {/* PFD Gyroscopic Display */}
           <div className="flex flex-col gap-2 min-h-0">
             <div className="h-[360px] shrink-0">
-              <ArtificialHorizon
-                rollDeg={roll}
-                pitchDeg={pitch}
-                yawDeg={yaw}
-                altitudeM={alt}
-                speedMps={spd}
-                verticalSpeedMps={vz}
-                armedStatus={isAttached ? 'GONDOLA LOCKED' : 'RELEASED'}
-                gpsStatus="GPS: 3D FIX"
-                flightPhase={flightPhase}
-              />
+              {hasAttitude ? (
+                <ArtificialHorizon
+                  rollDeg={roll.value as number}
+                  pitchDeg={pitch.value as number}
+                  yawDeg={yaw.value as number}
+                  altitudeM={alt.value ?? Number.NaN}
+                  speedMps={spd.value ?? Number.NaN}
+                  verticalSpeedMps={vz.value ?? Number.NaN}
+                  armedStatus={rocketAboard ? `ROCKET ${rocketAboard}` : 'ROCKET STATE UNKNOWN'}
+                  gpsStatus={`POSITION: ${alt.status}`}
+                  flightPhase={flightPhase}
+                />
+              ) : (
+                <div className="panel grid h-full place-items-center text-[12px] text-muted">No attitude telemetry (IMU_ROLL/PITCH/YAW): UNKNOWN</div>
+              )}
             </div>
             {/* Mission status quick summary */}
             <div className="flex-1 rounded border border-[#222e42] bg-[#0c1422] p-3">
-              <span className="lbl block mb-2">Live Flight Metrics</span>
+              <span className="lbl block mb-2">Live flight metrics (fused estimator)</span>
               <div className="grid grid-cols-2 gap-2 text-[12px]">
                 <div className="rounded border border-[#30234a] bg-[#140e24] p-2">
                   <span className="text-[10.5px] text-[#b388ff]">Altitude</span>
-                  <div className="text-[18px] font-bold text-[#b388ff]">{Math.round(alt).toLocaleString()} m</div>
+                  <div className="text-[18px] font-bold text-[#b388ff]">{fmt(alt, 0, 'm')}</div>
+                  <span className={`tag ${STATUS_TAG[alt.status as keyof typeof STATUS_TAG] ?? 'tag-stale'}`}>{alt.status}</span>
                 </div>
                 <div className="rounded border border-[#0d3b19] bg-[#051c0a] p-2">
-                  <span className="text-[10.5px] text-[#00e676]">Heading</span>
-                  <div className="text-[18px] font-bold text-[#00e676]">{Math.round(yaw)}°</div>
+                  <span className="text-[10.5px] text-[#00e676]">Yaw (IMU)</span>
+                  <div className="text-[18px] font-bold text-[#00e676]">{fmt(yaw, 0, '°')}</div>
+                  <span className={`tag ${STATUS_TAG[yaw.status as keyof typeof STATUS_TAG] ?? 'tag-stale'}`}>{yaw.status}</span>
                 </div>
                 <div className="rounded border border-[#4d2f09] bg-[#211403] p-2">
                   <span className="text-[10.5px] text-[#ff9800]">Groundspeed</span>
-                  <div className="text-[18px] font-bold text-[#ff9800]">{spd.toFixed(1)} m/s</div>
+                  <div className="text-[18px] font-bold text-[#ff9800]">{fmt(spd, 1, 'm/s')}</div>
+                  <span className={`tag ${STATUS_TAG[spd.status as keyof typeof STATUS_TAG] ?? 'tag-stale'}`}>{spd.status}</span>
                 </div>
                 <div className="rounded border border-[#4d4409] bg-[#211d03] p-2">
                   <span className="text-[10.5px] text-[#ffeb3b]">Vert. Speed</span>
-                  <div className="text-[18px] font-bold text-[#ffeb3b]">{vz >= 0 ? `+${vz.toFixed(1)}` : vz.toFixed(1)} m/s</div>
+                  <div className="text-[18px] font-bold text-[#ffeb3b]">{vz.value === null ? '---' : `${vz.value >= 0 ? '+' : ''}${vz.value.toFixed(1)} m/s`}</div>
+                  <span className={`tag ${STATUS_TAG[vz.status as keyof typeof STATUS_TAG] ?? 'tag-stale'}`}>{vz.status}</span>
                 </div>
               </div>
             </div>
@@ -533,13 +535,19 @@ export default function FlightPage() {
 
           {/* Live Location Moving Map */}
           <div className="h-full min-h-[500px]">
-            <MissionLiveMap
-              vehicleLat={lat}
-              vehicleLon={lon}
-              vehicleAltM={alt}
-              yawDeg={yaw}
-              flightPhase={flightPhase}
-            />
+            {hasFix ? (
+              <MissionLiveMap
+                vehicleLat={lat.value as number}
+                vehicleLon={lon.value as number}
+                vehicleAltM={alt.value as number}
+                yawDeg={yaw.value ?? 0}
+                homeLat={(site as { lat: number }).lat}
+                homeLon={(site as { lon: number }).lon}
+                flightPhase={flightPhase}
+              />
+            ) : (
+              <div className="panel grid h-full place-items-center text-[12px] text-muted">No fused position yet: UNKNOWN</div>
+            )}
           </div>
 
           {/* Right side: Commit gates and Fused state */}

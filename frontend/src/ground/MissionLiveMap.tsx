@@ -7,8 +7,8 @@ interface MissionLiveMapProps {
   vehicleLon: number;
   vehicleAltM: number;
   yawDeg: number;
-  homeLat?: number;
-  homeLon?: number;
+  homeLat: number; // launch site (config)
+  homeLon: number;
   slantRangeM?: number;
   flightPhase?: string;
   historyTrail?: [number, number][]; // [[lat, lon], ...]
@@ -19,8 +19,8 @@ export function MissionLiveMap({
   vehicleLon,
   vehicleAltM,
   yawDeg,
-  homeLat = 37.1,
-  homeLon = -6.733,
+  homeLat,
+  homeLon,
   slantRangeM,
   flightPhase = 'PRELAUNCH',
   historyTrail = [],

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '../api/client';
 import { ui } from '../theme/tokens';
 import { fmtMET, fmtNum } from './format';
@@ -7,6 +7,7 @@ import { RangeMap, type MapLine, type MapPoint, type MapPoly } from './RangeMap'
 import { StripChart } from './StripChart';
 import { TrajectoryXYZGraph, type TrajectoryXYZPoint } from './TrajectoryXYZGraph';
 import { useGround } from './store';
+import { chan } from './live';
 
 interface HorizonForecast {
   physics: { alt: number; lat: number; lon: number };
@@ -44,10 +45,6 @@ interface ModelCard {
 
 const H = ['30', '60', '120'];
 
-// Point Calimere Bird Sanctuary (Tamil Nadu) Launch Origin
-const ORIGIN_LAT = 10.301500;
-const ORIGIN_LON = 79.851200;
-const ORIGIN_NAME = 'Point Calimere Bird Sanctuary (Tamil Nadu)';
 
 function ModelCardPanel({ card, fc, ml, setMl }: { card: ModelCard | null; fc: Forecast | null; ml: boolean; setMl: (v: boolean) => void }) {
   const ev = card?.evaluation;
@@ -153,59 +150,30 @@ export default function TrajectoryPage() {
   const fc = (snap as unknown as { forecast?: Forecast | null } | null)?.forecast ?? null;
   const g = snap?.ground;
 
-  // Latch coordinates to prevent fluctuating between pings
-  const dt = snap?.digital_twin_telemetry;
-  const latchedCoords = useRef({ x: 0, y: 0, z: 0, slant: 0 });
-
-  if (dt?.gnss_coordinates) {
-    const rawX = dt.gnss_coordinates.x_downrange_m ?? dt.gnss_coordinates.position_from_origin_xyz_m?.[0] ?? 0;
-    const rawY = dt.gnss_coordinates.y_altitude_m ?? dt.gnss_coordinates.position_from_origin_xyz_m?.[1] ?? 0;
-    const rawZ = dt.gnss_coordinates.z_crossrange_m ?? dt.gnss_coordinates.position_from_origin_xyz_m?.[2] ?? 0;
-    const slant = dt.gnss_coordinates.slant_range_3d_m ?? Math.hypot(rawX, rawY, rawZ);
-
-    if (rawY > 0 || latchedCoords.current.y === 0) {
-      latchedCoords.current = { x: rawX, y: rawY, z: rawZ, slant };
-    }
-  } else if (rows.length > 0) {
-    const lastR = rows[rows.length - 1];
-    const rawX = (lastR.x as number) ?? 0;
-    const rawY = (lastR.y as number) ?? (lastR.GNSS_ALT as number) ?? 0;
-    const rawZ = (lastR.z as number) ?? 0;
-    const slant = Math.hypot(rawX, rawY, rawZ);
-    if (rawY > 0 || latchedCoords.current.y === 0) {
-      latchedCoords.current = { x: rawX, y: rawY, z: rawZ, slant };
-    }
-  }
-
-  const { x: curX, y: curY, z: curZ, slant: curSlant } = latchedCoords.current;
-
-  // High-precision WGS84 Geodetic fix derived from Launch Pad Origin at Point Calimere
-  const computedLat = ORIG_LAT_CALC(curZ);
-  const computedLon = ORIG_LON_CALC(curX);
-
-  function ORIG_LAT_CALC(z: number): number {
-    return Number((ORIGIN_LAT + z / 110609.6).toFixed(6));
-  }
-  function ORIG_LON_CALC(x: number): number {
-    return Number((ORIGIN_LON + x / 109531.0).toFixed(6));
-  }
-
-  // Ping paused / prediction indicator
-  const isPaused =
-    dt?.ping_paused === 1 ||
-    dt?.ping_paused === true ||
-    dt?.ping_paused === '1' ||
-    dt?.is_prediction_active === true ||
-    dt?.simulation_state?.is_paused === true;
+  // Launch origin = the configured site (one site config); position = the sender's own channels.
+  const site = prof?.range.site ?? null;
+  const ORIGIN_LAT = site?.lat ?? Number.NaN;
+  const ORIGIN_LON = site?.lon ?? Number.NaN;
+  const ORIGIN_NAME = site?.name ?? 'site not loaded';
+  const px = chan(snap, 'POS_DOWNRANGE');
+  const py = chan(snap, 'POS_ALT_PAD');
+  const pz = chan(snap, 'POS_CROSSRANGE');
+  const hasXYZ = px.value !== null && py.value !== null && pz.value !== null;
+  const curX = px.value ?? 0;
+  const curY = py.value ?? 0;
+  const curZ = pz.value ?? 0;
+  const curSlant = Math.hypot(curX, curY, curZ);
+  const gLat = chan(snap, 'GNSS_LAT');
+  const gLon = chan(snap, 'GNSS_LON');
+  const computedLat = gLat.value ?? Number.NaN;
+  const computedLon = gLon.value ?? Number.NaN;
+  const isPaused = chan(snap, 'TWIN_PAUSED').value === 1;
 
   // History for 3D XYZ graph
   const historyXYZ: TrajectoryXYZPoint[] = useMemo(() => {
-    return rows.map((r) => ({
-      x: typeof r.x === 'number' ? r.x : 0,
-      y: typeof r.y === 'number' ? r.y : typeof r.GNSS_ALT === 'number' ? r.GNSS_ALT : 0,
-      z: typeof r.z === 'number' ? r.z : 0,
-      met: r.met,
-    }));
+    return rows
+      .filter((r) => typeof r.POS_DOWNRANGE === 'number' && typeof r.POS_ALT_PAD === 'number' && typeof r.POS_CROSSRANGE === 'number')
+      .map((r) => ({ x: r.POS_DOWNRANGE as number, y: r.POS_ALT_PAD as number, z: r.POS_CROSSRANGE as number, met: r.met }));
   }, [rows]);
 
   const lines = useMemo<MapLine[]>(() => {
@@ -242,12 +210,12 @@ export default function TrajectoryPage() {
 
   const points = useMemo<MapPoint[]>(() => {
     const out: MapPoint[] = [];
-    out.push({ id: 'pad-origin', lat: ORIGIN_LAT, lon: ORIGIN_LON, color: '#f5c542', label: 'PAD: Point Calimere Bird Sanctuary' });
-    out.push({ id: 'vehicle-pos', lat: computedLat, lon: computedLon, color: ui.pass, label: `VEHICLE (${curY.toFixed(0)}m)` });
+    if (Number.isFinite(ORIGIN_LAT)) out.push({ id: 'pad-origin', lat: ORIGIN_LAT, lon: ORIGIN_LON, color: '#f5c542', label: `PAD: ${ORIGIN_NAME}` });
+    if (Number.isFinite(computedLat)) out.push({ id: 'vehicle-pos', lat: computedLat, lon: computedLon, color: ui.pass, label: `VEHICLE GNSS (${gLat.status})` });
     const ip = (g as unknown as { impact_points?: { case: string; lat: number; lon: number; inside: boolean }[] } | undefined)?.impact_points;
     for (const p of ip ?? []) out.push({ id: `iip-${p.case}`, lat: p.lat, lon: p.lon, color: p.inside ? ui.white : ui.fail, label: `IIP ${p.case}` });
     return out;
-  }, [g, computedLat, computedLon, curY]);
+  }, [g, computedLat, computedLon, gLat.status, ORIGIN_LAT, ORIGIN_LON, ORIGIN_NAME]);
 
   // Altitude vs time: last 20 min measured + forecasts to +120 s.
   const chart = useMemo(() => {
@@ -324,6 +292,9 @@ export default function TrajectoryPage() {
           {/* MAIN VIEW: 3D XYZ GRAPH (User requirement) */}
           {mainTab === 'xyz' ? (
             <div className="min-h-[480px] flex-1">
+              {!hasXYZ ? (
+                <div className="panel grid h-full min-h-[480px] place-items-center text-[12px] text-muted">No twin position channels (POS_*) received: UNKNOWN</div>
+              ) : (
               <TrajectoryXYZGraph
                 currentX={curX}
                 currentY={curY}
@@ -336,12 +307,13 @@ export default function TrajectoryPage() {
                 computedLon={computedLon}
                 history={historyXYZ}
               />
+              )}
             </div>
           ) : (
             <section className="panel flex min-h-[480px] flex-1 flex-col" aria-labelledby="traj-map">
               <div className="panel-head">
                 <h2 id="traj-map" className="panel-title">
-                  Point Calimere Corridor Range Map
+                  Range map ({ORIGIN_NAME})
                 </h2>
                 <span className="flex flex-wrap gap-3 text-[10.5px] text-muted">
                   <span className="text-pass">━ measured track</span>
@@ -353,15 +325,7 @@ export default function TrajectoryPage() {
                 {prof ? (
                   <RangeMap {...profileMapProps(prof)} center={[ORIGIN_LAT, ORIGIN_LON]} zoom={8.8} lines={lines} polys={polys} points={points} />
                 ) : (
-                  <RangeMap
-                    center={[ORIGIN_LAT, ORIGIN_LON]}
-                    approved={null}
-                    zones={[]}
-                    zoom={8.8}
-                    lines={lines}
-                    polys={polys}
-                    points={points}
-                  />
+                  <div className="grid h-full place-items-center text-[12px] text-muted">Loading site and range zones…</div>
                 )}
               </div>
             </section>
@@ -390,11 +354,11 @@ export default function TrajectoryPage() {
             <div className="mt-1 text-[13px] font-bold text-[#f5c542]">{ORIGIN_NAME}</div>
             <div className="mt-1 flex justify-between text-muted text-[11px]">
               <span>Latitude:</span>
-              <span className="text-white font-bold">{ORIGIN_LAT.toFixed(6)}° N</span>
+              <span className="text-white font-bold">{Number.isFinite(ORIGIN_LAT) ? `${ORIGIN_LAT.toFixed(6)}° N` : '---'}</span>
             </div>
             <div className="flex justify-between text-muted text-[11px]">
               <span>Longitude:</span>
-              <span className="text-white font-bold">{ORIGIN_LON.toFixed(6)}° E</span>
+              <span className="text-white font-bold">{Number.isFinite(ORIGIN_LON) ? `${ORIGIN_LON.toFixed(6)}° E` : '---'}</span>
             </div>
             <div className="flex justify-between text-muted text-[11px]">
               <span>Corridor:</span>
@@ -404,19 +368,19 @@ export default function TrajectoryPage() {
               <span className="lbl text-[#3fd68a]">HIGH-PRECISION TELEMETRY FIX</span>
               <div className="mt-1 flex justify-between text-[11px]">
                 <span className="text-muted">Downrange (X):</span>
-                <span className="text-[#ff5252] font-bold">{curX >= 0 ? `+${curX.toFixed(2)}` : curX.toFixed(2)} m</span>
+                <span className="text-[#ff5252] font-bold">{px.value === null ? '---' : `${curX >= 0 ? '+' : ''}${curX.toFixed(2)} m`}</span>
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-muted">Altitude (Y):</span>
-                <span className="text-[#3fd68a] font-bold">{curY.toFixed(2)} m</span>
+                <span className="text-[#3fd68a] font-bold">{py.value === null ? '---' : `${curY.toFixed(2)} m`}</span>
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-muted">Crossrange (Z):</span>
-                <span className="text-[#00e5ff] font-bold">{curZ >= 0 ? `+${curZ.toFixed(2)}` : curZ.toFixed(2)} m</span>
+                <span className="text-[#00e5ff] font-bold">{pz.value === null ? '---' : `${curZ >= 0 ? '+' : ''}${curZ.toFixed(2)} m`}</span>
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-muted">3D Slant Range:</span>
-                <span className="text-[#f5c542] font-bold">{curSlant.toFixed(2)} m</span>
+                <span className="text-[#f5c542] font-bold">{hasXYZ ? `${curSlant.toFixed(2)} m` : '---'}</span>
               </div>
             </div>
           </section>

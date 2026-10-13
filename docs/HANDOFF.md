@@ -149,9 +149,16 @@ area, range zones, snapshot atmosphere and ML data did not (impact gate cannot p
   the ground-station position; `config/range.yaml` holds zones as site offsets (replaces range.geojson);
   `tools/record_atmosphere_snapshot.py` re-recorded the Open-Meteo snapshot for the site (13 Oct);
   demo sessions re-recorded (nominal reaches GO again). Full backend suite: 207 passed.
+- B.4 done: frontend reads only the pipeline (`frontend/src/ground/live.ts`: channel/estimate readings with
+  status, absent = UNKNOWN). Removed: store.ts synthesis of history rows from the raw packet (TANK_P from MET,
+  MOTOR_T -25, rec GO, raw labelled FUSED, Date.now() MET), Overview sticky latch + DEFAULT_TELEMETRY +
+  mass/propellant defaults (Overview rebuilt on channels/estimates + twin-stream diagnostics + labelled RAW
+  packet), Flight/Trajectory twin branches and the 37.1/-6.733 and Point Calimere constants, MissionLiveMap
+  home default, the Post-flight hard-coded debrief (apogee, duration, splashdown, 100 % quality). EVENTS page
+  restored (key 6). Post-flight code from 87458be now tested (tests/test_postflight_receiver.py: recovery,
+  tamper, report hash, grading isolation, exports, API, twin recovery refused). Backend: 212 passed.
 
 ## Status
 
-- Next exact step: B.4 remove remaining fakes/placeholders in the frontend (store.ts TCP rows,
-  Flight/Overview/Trajectory digital_twin_telemetry branches, fallbacks 37.1/-6.733/10.3015, mass
-  defaults, sticky latch) and test the post-flight code from 87458be on the twin pipeline.
+- Next exact step: B.5 UI performance (profile the 4.7 s stall; fixed 2-5 Hz render from the latest state),
+  then raw + fused side by side and empty/error states.

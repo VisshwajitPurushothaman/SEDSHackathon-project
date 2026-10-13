@@ -3,7 +3,7 @@ import type { Alarm } from './api';
 import { fmtAge, fmtMET, fmtUTC } from './format';
 import { useGround } from './store';
 
-export type PageId = 'overview' | 'preflight' | 'flight' | 'trajectory' | 'postflight';
+export type PageId = 'overview' | 'preflight' | 'flight' | 'trajectory' | 'postflight' | 'events';
 
 export const PAGES: { id: PageId; label: string; key: string }[] = [
   { id: 'overview', label: 'OVERVIEW', key: '1' },
@@ -11,6 +11,7 @@ export const PAGES: { id: PageId; label: string; key: string }[] = [
   { id: 'flight', label: 'FLIGHT', key: '3' },
   { id: 'trajectory', label: 'TRAJECTORY', key: '4' },
   { id: 'postflight', label: 'POST-FLIGHT', key: '5' },
+  { id: 'events', label: 'EVENTS', key: '6' },
 ];
 
 const pageFromHash = (): PageId => {

@@ -166,3 +166,5 @@ channels:
   TOTAL_MASS:     {description: Vehicle total mass (twin), units: kg, subsystem: VEHICLE, rate_hz: 2, decimals: 1}
   MACH:           {description: Mach number (twin), units: "", subsystem: VEHICLE, rate_hz: 2, decimals: 2, pad: false}
   DYN_P:          {description: Dynamic pressure (twin), units: Pa, subsystem: VEHICLE, rate_hz: 2, decimals: 2, pad: false}
+  TWIN_PAUSED:    {description: "Sender reports its simulation/pinging paused (1) - values may be held or predicted by the sender", units: "", subsystem: COMM, rate_hz: 2, decimals: 0,
+                   limits: {default: {yellow: [null, 0.5], red: [null, null], basis: "paused sender = no fresh measurements"}}}

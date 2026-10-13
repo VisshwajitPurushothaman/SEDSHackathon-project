@@ -95,60 +95,17 @@ export const useGround = create<GroundState>((set, get) => ({
       sock.onmessage = (ev) => {
         const snap = JSON.parse(ev.data as string) as Snapshot;
         const prev = get().missionId;
-        if (snap.mission_id && snap.mission_id !== prev) {
-          set({ missionId: snap.mission_id });
+        if (snap.mission_id !== prev) {
+          // A new mission (or none): never mix histories of different missions.
+          set({ missionId: snap.mission_id, rows: [], track: [], los: [], linkSamples: [] });
         }
         const l = snap.link;
 
-        // Populate live digital twin history rows and track for strip charts and trajectory
-        const dt = snap.digital_twin_telemetry;
-        let curRows = get().rows;
-        let curTrack = get().track;
-
-        if (dt) {
-          const gnss = dt.gnss_coordinates;
-          const alt = gnss?.geodetic_wgs84?.alt_m ?? dt.barometric_sensor?.derived_altitude_m ?? 0;
-          const env = dt.environmental_sensors;
-          const vz = env?.effective_wind_vector_mps?.[1] ?? 0;
-          const superpress =
-            dt.orbital_and_aerothermal_physics?.differential_superpressure_pa ??
-            142.25;
-          const met = Math.round(((dt.timestamp_ms || Date.now()) / 1000.0) * 100) / 100;
-
-          if (!curRows.length || Math.abs(curRows[curRows.length - 1].met - met) >= 0.2) {
-            const newRow: HistoryRow = {
-              met,
-              phase: dt.flight_phase ?? 'STRATOSPHERIC_ASCENT',
-              rec: 'GO_RECOMMENDED',
-              GNSS_ALT: alt,
-              fused_altitude: alt,
-              GNSS_VU: vz,
-              fused_vertical_speed: vz,
-              TANK_P: Math.round(Math.max(180.0, 250.0 - met * 0.005) * 10) / 10,
-              GAUGE_P: Math.round((superpress / 100.0) * 100) / 100,
-              IMU_TILT: dt.imu_sensor?.attitude_rpy_deg?.[1] ?? 0,
-              MOTOR_T: -25.0,
-            };
-            curRows = curRows.concat(newRow).slice(-MAX_ROWS);
-            curTrack = curTrack
-              .concat({
-                met,
-                lat: gnss?.geodetic_wgs84?.lat_deg ?? 10.3015,
-                lon: gnss?.geodetic_wgs84?.lon_deg ?? 79.8512,
-                alt,
-                status: 'FUSED',
-              })
-              .slice(-MAX_ROWS);
-          }
-        }
-
         set((s) => ({
           snap,
-          rows: curRows,
-          track: curTrack,
           linkSamples:
             snap.utc !== undefined && l?.loss_pct !== undefined
-              ? s.linkSamples.concat({ utc: snap.utc, loss: l.loss_pct, rate: l.rate_hz ?? 2 }).slice(-600)
+              ? s.linkSamples.concat({ utc: snap.utc, loss: l.loss_pct, rate: l.rate_hz ?? 0 }).slice(-600)
               : s.linkSamples,
         }));
         if (snap.mission_id && snap.mission_id !== prev) void pullHistory();

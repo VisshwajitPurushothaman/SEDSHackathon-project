@@ -30,7 +30,8 @@ from .preflight import PadEvidence
 LOS_AFTER_S = 3.0  # silence before declaring loss of signal
 STALE_AFTER_S = 3.0  # channel value older than this (wall s) is STALE
 RATE_WINDOW_S = 10.0
-HISTORY_KEYS = ("GNSS_ALT", "GNSS_VU", "TANK_P", "TANK_T", "MOTOR_T", "IMU_TILT", "BARO_P", "AIR_T", "RSSI", "BATT_V")
+HISTORY_KEYS = ("GNSS_ALT", "GNSS_LAT", "GNSS_LON", "GNSS_VU", "TANK_P", "TANK_T", "MOTOR_T", "IMU_TILT", "BARO_P", "AIR_T", "RSSI", "BATT_V",
+                "POS_DOWNRANGE", "POS_ALT_PAD", "POS_CROSSRANGE", "IMU_ROLL", "IMU_PITCH", "IMU_YAW")
 
 
 class GroundSession:
