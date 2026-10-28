@@ -83,6 +83,12 @@ Ground-station API: `ws://127.0.0.1:8000/ws/telemetry`, `/api/ground/*`
 (see [docs/API.md](docs/API.md)). Received frames are written to
 `data/sessions/<mission_id>.jsonl`.
 
+For the Laptop A digital twin, Laptop B listens on **TCP 65431** on all IPv4
+interfaces. Configure Laptop A with Laptop B's current Wi-Fi IPv4 address and
+port 65431. After changing networks, check `ipconfig`, update the sender target,
+and restart the backend to clear the previous sender's IP lock. `--tcp-port` or
+`AEROFIRE_TCP_PORT` overrides the default; UDP ICD telemetry remains on 5600.
+
 ## Trajectory forecast model (offline, Laptop A side)
 
 ```bash

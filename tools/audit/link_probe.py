@@ -1,6 +1,6 @@
 """Audit A1: raw telemetry listener. Logs every packet with arrival time and source, without app code.
 
-    python tools/audit/link_probe.py --tcp 65432 --seconds 120      # Laptop A twin (4-byte length + JSON)
+    python tools/audit/link_probe.py --tcp 65431 --seconds 120      # Laptop A twin (4-byte length + JSON)
     python tools/audit/link_probe.py --udp 5600 --seconds 120       # ICD v1 sender
 
 The port must be free (stop the backend first). TCP clients get the same ACK the receiver sends, so
@@ -90,7 +90,7 @@ def main() -> int:
         else:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind((a.host, a.tcp or 65432))
+            s.bind((a.host, a.tcp or 65431))
             s.listen(16)
             s.settimeout(0.5)
             conn_id = 0

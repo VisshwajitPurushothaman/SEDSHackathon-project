@@ -82,7 +82,7 @@ def read_telemetry_packet(conn: socket.socket) -> tuple[dict[str, Any] | None, i
 class TcpReceiver:
     """Thread-safe TCP receiver server listening for digital twin telemetry."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 65432, on_frame: Callable[[dict[str, Any]], None] | None = None):
+    def __init__(self, host: str = "0.0.0.0", port: int = 65431, on_frame: Callable[[dict[str, Any]], None] | None = None):
         self.host = host
         self.port = port
         self.on_frame_cb = on_frame

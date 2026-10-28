@@ -79,7 +79,7 @@ def start_receiver() -> None:
     no_tcp = os.environ.get("AEROFIRE_NO_TCP", "").lower() in ("1", "true", "yes")
     if not no_tcp:
         tcp_host = os.environ.get("AEROFIRE_TCP_HOST", "0.0.0.0")
-        tcp_port = int(os.environ.get("AEROFIRE_TCP_PORT", "65432"))
+        tcp_port = int(os.environ.get("AEROFIRE_TCP_PORT", "65431"))
         GLOBAL_TCP_RECEIVER.host = tcp_host
         GLOBAL_TCP_RECEIVER.port = tcp_port
         # One pipeline: accepted twin packets enter the same receiver/estimator path as ICD frames.

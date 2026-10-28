@@ -3,7 +3,7 @@
 Usage:
     python tools/send_tcp_telemetry.py                 # Single test packet
     python tools/send_tcp_telemetry.py --stream        # Stream packets every 0.5s
-    python tools/send_tcp_telemetry.py --port 65432    # Custom port
+    python tools/send_tcp_telemetry.py --port 65431    # Custom port
 """
 import argparse
 import copy
@@ -43,7 +43,7 @@ SAMPLE_PAYLOAD = {
     },
     "tcp_socket_stream": {
         "server_ip": "127.0.0.1",
-        "port": 65432,
+        "port": 65431,
         "ping_interval_seconds": 0.5,
         "is_pinging": True,
         "protocol": "4-byte Big-Endian uint32 (!I) length header + UTF-8 JSON",
@@ -158,7 +158,7 @@ def send_packet(sock, payload):
 def main():
     p = argparse.ArgumentParser(description="Send TCP telemetry packet to GCS")
     p.add_argument("--host", default="127.0.0.1", help="GCS host")
-    p.add_argument("--port", type=int, default=65432, help="GCS TCP port")
+    p.add_argument("--port", type=int, default=65431, help="GCS TCP port")
     p.add_argument("--stream", action="store_true", help="Send continuous telemetry stream every 0.5s")
     p.add_argument("--count", type=int, default=0, help="Number of packets (0 = infinite for stream)")
     args = p.parse_args()

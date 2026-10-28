@@ -138,7 +138,7 @@ function StateBanner() {
     const rej = flt ? Object.values(flt.rejected).reduce((a, b) => a + b, 0) : 0;
     text = rej
       ? `No telemetry stream locked: ${rej} packets received from ${flt?.source ?? 'the sender'} but none advancing in MET (see OVERVIEW > Laptop A twin stream).`
-      : 'No telemetry received yet: waiting for Laptop A (TCP 65432) or an ICD sender (UDP 5600).';
+      : 'No telemetry received yet: waiting for Laptop A (TCP 65431) or an ICD sender (UDP 5600).';
     cls = 'border-line bg-panel2 text-muted';
   } else if (snap.link && snap.link.aos === false) {
     text = 'LOS: no fresh frames. Values are STALE (with age) and positions PREDICTED.';

@@ -144,7 +144,7 @@ channels:
   RKT_DR:       {description: Rocket downrange (illustrative model, not validated), units: m, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}
   RKT_SPD:      {description: Rocket speed (illustrative model, not validated), units: m/s, subsystem: VEHICLE, rate_hz: 1, decimals: 0, pad: false}
 
-  # ---------------------------------------------------------------- Laptop A digital twin (TCP 65432)
+  # ---------------------------------------------------------------- Laptop A digital twin (TCP 65431)
   # Mapped by aerofire/receiver/twin.py from the twin's JSON. Values as sent; no limits unless stated.
   FC_PHASE_RAW:   {description: "Twin flight_phase as sent (mapped to FC_PHASE)", units: "", subsystem: VEHICLE, rate_hz: 2}
   RKT_STATUS:     {description: Twin rocket status as sent, units: "", subsystem: VEHICLE, rate_hz: 2, pad: false}
